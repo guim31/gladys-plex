@@ -62,7 +62,7 @@ export const SESSIONS = {
           product: 'Plex for Apple TV',
           state: 'playing',
         },
-        Session: { bandwidth: 12_000 },
+        Session: { id: 'sess-1', bandwidth: 12_000 },
         TranscodeSession: { videoDecision: 'transcode' },
       },
       {
@@ -80,7 +80,7 @@ export const SESSIONS = {
           product: 'Plex for Android',
           state: 'paused',
         },
-        Session: { bandwidth: 320 },
+        Session: { id: 'sess-2', bandwidth: 320 },
       },
     ],
   },

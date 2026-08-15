@@ -191,6 +191,17 @@ export class PlexApi {
   }
 
   /**
+   * Terminate an active playback session server-side. Used as the `stop`
+   * fallback for players the server cannot control remotely.
+   * @param {string} sessionId - The `Session.id` of the active session.
+   * @param {string} [reason] - Message displayed on the interrupted player.
+   */
+  async terminateSession(sessionId, reason = 'Stopped from Gladys Assistant') {
+    logger.debug(`Terminating session ${sessionId}`);
+    await this.request('/status/sessions/terminate', { sessionId, reason });
+  }
+
+  /**
    * Send a playback command to a player, proxied through the server.
    * @param {string} machineIdentifier - Target player identifier.
    * @param {string} path - Command path, e.g. '/player/playback/play'.

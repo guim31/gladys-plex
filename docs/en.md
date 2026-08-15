@@ -94,9 +94,12 @@ detail.
 - **"Plex server unreachable"** — check the URL (scheme, IP, port 32400) and
   that Gladys can reach the server's network.
 - **A player does not react to commands** — the player must be reachable by
-  the **server** (commands are proxied through it). Check that the player is
-  listed in the "Test the Plex connection" report after a **Scan for Plex
-  players**, and that remote control is allowed in the player's settings.
+  the **server** (commands are proxied through it). Players discovered only
+  while streaming (phones especially) are often not controllable: enable
+  "Advertise as player" in that Plex app, then run **Scan for Plex players**
+  again. On a non-controllable player, commands report a clear error —
+  except **Stop**, which interrupts the playback server-side (session
+  termination).
 - **Intro/credits sensors never turn on** — your Plex server must have the
   intro/credits detection enabled (Settings → Library) and the markers only
   exist for analyzed items.

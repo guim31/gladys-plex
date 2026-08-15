@@ -101,9 +101,13 @@ l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
 - **« Plex server unreachable »** — vérifiez l'URL (schéma, IP, port 32400)
   et que Gladys peut joindre le réseau du serveur.
 - **Un lecteur ne réagit pas aux commandes** — le lecteur doit être joignable
-  par le **serveur** (les commandes transitent par lui). Vérifiez qu'il
-  apparaît après un **Rechercher les lecteurs Plex** et que le contrôle à
-  distance est autorisé dans les réglages du lecteur.
+  par le **serveur** (les commandes transitent par lui). Les lecteurs
+  découverts uniquement pendant une lecture (téléphones notamment) ne sont
+  souvent pas contrôlables : activez « S'annoncer comme lecteur » dans
+  l'application Plex concernée, puis relancez **Rechercher les lecteurs
+  Plex**. Sur un lecteur non contrôlable, les commandes affichent une erreur
+  explicite — sauf **Stop**, qui interrompt la lecture côté serveur (fin de
+  session).
 - **Les capteurs intro/générique ne s'activent jamais** — la détection des
   intros/génériques doit être activée sur votre serveur Plex
   (Réglages → Bibliothèque) et les marqueurs n'existent que pour les éléments

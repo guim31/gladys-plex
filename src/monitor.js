@@ -60,6 +60,15 @@ export class PlexMonitor {
     this.libraries = [];
     /** @type {Map<string, { machineIdentifier: string, name: string, product: string }>} */
     this.players = new Map();
+    /**
+     * Players the server can reach for remote-control commands (the /clients
+     * list). A player only seen through its sessions — a phone without
+     * "Advertise as player" — is NOT in this set: commands proxied to it are
+     * silently dropped by the server, so we reject them with a clear error
+     * instead (and fall back to a server-side session kill for `stop`).
+     * @type {Set<string>}
+     */
+    this.controllable = new Set();
     /** @type {Map<string, object>} Active sessions by player machineIdentifier. */
     this.activeSessions = new Map();
     /** @type {Map<string|number, Array<object>>} Markers by media ratingKey. */
@@ -95,8 +104,11 @@ export class PlexMonitor {
    * @returns {Promise<number>} How many players are known in total.
    */
   async discoverPlayers() {
-    for (const client of await this.api.getClients()) {
+    const clients = await this.api.getClients();
+    this.controllable = new Set();
+    for (const client of clients) {
       if (client.machineIdentifier) {
+        this.controllable.add(client.machineIdentifier);
         this.players.set(client.machineIdentifier, {
           machineIdentifier: client.machineIdentifier,
           name: client.name || client.product || client.machineIdentifier,
@@ -132,7 +144,6 @@ export class PlexMonitor {
       newPlayers = this.rememberPlayer(session) || newPlayers;
     }
 
-    const previouslyActive = new Set(this.activeSessions.keys());
     this.activeSessions = new Map(sessions.map((s) => [s.machineIdentifier, s]));
 
     const states = [];
@@ -163,8 +174,11 @@ export class PlexMonitor {
       await this.publishTextIfChanged(ids.feature(PLAYER_FEATURE.NOW_PLAYING), session.title);
     }
 
-    // Players that just went idle.
-    for (const machineIdentifier of previouslyActive) {
+    // Idle players: every known player without an active session. Thanks to
+    // the deduplication this is a no-op in steady state; it covers both the
+    // "just went idle" transition and a device freshly created in Gladys
+    // while nothing is playing (its publication cache was just reset).
+    for (const machineIdentifier of this.players.keys()) {
       if (!this.activeSessions.has(machineIdentifier)) {
         const ids = playerExternalIds(this.gladys, machineIdentifier);
         this.collectIfChanged(states, ids.feature(PLAYER_FEATURE.PLAYBACK_STATE), 0);
@@ -253,25 +267,40 @@ export class PlexMonitor {
     const key = playerFeatureKey(feature.external_id, ids);
     const session = this.activeSessions.get(machineIdentifier);
     const commandType = commandTypeForMedia(session?.mediaType ?? 'video');
+    const controllable = this.controllable.has(machineIdentifier);
 
     if (PLAYER_COMMAND_PATHS[key]) {
-      await this.api.playerCommand(machineIdentifier, PLAYER_COMMAND_PATHS[key], {
-        type: commandType,
-      });
-    } else if (key === PLAYER_FEATURE.VOLUME) {
-      const volume = Math.max(0, Math.min(100, Math.round(value)));
+      if (controllable) {
+        await this.api.playerCommand(machineIdentifier, PLAYER_COMMAND_PATHS[key], {
+          type: commandType,
+        });
+        logger.info(`Command ${key} sent to player ${machineIdentifier}`);
+      } else if (key === PLAYER_FEATURE.STOP && session?.sessionId) {
+        // The server cannot reach this player: kill its stream server-side.
+        await this.api.terminateSession(session.sessionId);
+        logger.info(`Session of ${machineIdentifier} terminated server-side (stop fallback)`);
+      } else {
+        throw new Error(
+          `Player ${machineIdentifier} is not remotely controllable: enable ` +
+            `"Advertise as player" in its Plex app, then run "Scan for Plex players".`,
+        );
+      }
+    } else if (key === PLAYER_FEATURE.VOLUME || key === PLAYER_FEATURE.MUTE) {
+      if (!controllable) {
+        throw new Error(
+          `Player ${machineIdentifier} is not remotely controllable: enable ` +
+            `"Advertise as player" in its Plex app, then run "Scan for Plex players".`,
+        );
+      }
+      const params =
+        key === PLAYER_FEATURE.VOLUME
+          ? { volume: Math.max(0, Math.min(100, Math.round(value))) }
+          : { mute: value === 1 ? 1 : 0 };
       await this.api.playerCommand(machineIdentifier, '/player/playback/setParameters', {
         type: commandType,
-        volume,
+        ...params,
       });
-      await this.gladys.publishState(feature.external_id, volume);
-    } else if (key === PLAYER_FEATURE.MUTE) {
-      const mute = value === 1 ? 1 : 0;
-      await this.api.playerCommand(machineIdentifier, '/player/playback/setParameters', {
-        type: commandType,
-        mute,
-      });
-      await this.gladys.publishState(feature.external_id, mute);
+      await this.gladys.publishState(feature.external_id, Object.values(params)[0]);
     } else {
       throw new Error(`No command handler for ${feature.external_id}`);
     }
@@ -343,6 +372,26 @@ export class PlexMonitor {
       }
     }
     return this.markerCache.get(session.ratingKey);
+  }
+
+  /**
+   * Forget the last published values, so the next refresh republishes
+   * everything. Called when a device is created in Gladys: the states
+   * published while it did not exist yet were dropped, and the deduplication
+   * would otherwise never send them again.
+   * @param {string} [externalIdPrefix] - Only forget the features of this
+   *   device (its external_id); omit to forget everything.
+   */
+  resetPublicationCache(externalIdPrefix) {
+    if (!externalIdPrefix) {
+      this.lastPublished.clear();
+      return;
+    }
+    for (const key of this.lastPublished.keys()) {
+      if (key.startsWith(externalIdPrefix)) {
+        this.lastPublished.delete(key);
+      }
+    }
   }
 
   /**

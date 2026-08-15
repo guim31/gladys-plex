@@ -60,6 +60,23 @@ gladys.onSetValue(async (device, feature, value) => {
   await monitor.handleSetValue(device, feature, value);
 });
 
+// --- Device created: the user added a discovered device --------------------
+// The states published while the device did not exist in Gladys were dropped,
+// and the deduplication would never resend them: forget what was published
+// for this device and refresh everything right away, so its features show
+// fresh values seconds after the add.
+gladys.onDeviceCreated(async (device) => {
+  logger.info(`onDeviceCreated <- ${device.external_id}`);
+  if (!monitor) {
+    return;
+  }
+  monitor.resetPublicationCache(device.external_id);
+  monitor.scheduleSessionRefresh();
+  await monitor.refreshLibraries().catch((err) => {
+    logger.warn(`Library refresh after device creation failed: ${err.message}`);
+  });
+});
+
 // --- Polling ------------------------------------------------------------------
 // No device declares a Gladys poll_frequency (the core only accepts fast 1 s -
 // 1 min polling): both refresh loops are owned by the integration (see

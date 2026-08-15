@@ -51,6 +51,9 @@ function createFakeApi({ sessions = SESSIONS } = {}) {
     async playerCommand(machineIdentifier, path, params) {
       commands.push({ machineIdentifier, path, params });
     },
+    async terminateSession(sessionId) {
+      commands.push({ terminated: sessionId });
+    },
   };
 }
 
@@ -199,7 +202,7 @@ test('refreshLibraries publishes every library count', async () => {
   assert.equal(states['ext:plex:server:srv-abc123:library-3-tracks'], 5400);
 });
 
-test('handleSetValue routes playback commands to the right player', async () => {
+test('handleSetValue routes playback commands to controllable players', async () => {
   const { monitor } = await createMonitor();
   await monitor.refreshSessions();
   const device = { external_id: 'ext:plex:player:client-tv' };
@@ -211,12 +214,47 @@ test('handleSetValue routes playback commands to the right player', async () => 
     params: { type: 'video' },
   });
 
-  // The phone plays music: commands carry the music controller type.
-  const phone = { external_id: 'ext:plex:player:client-phone' };
-  await monitor.handleSetValue(phone, { external_id: `${phone.external_id}:play` }, 1);
-  assert.equal(monitor.api.commands[1].params.type, 'music');
-
   monitor.stop(); // cancel the post-command refresh timers
+});
+
+test('a non-controllable player rejects commands but stop kills its session', async () => {
+  const { monitor } = await createMonitor();
+  await monitor.refreshSessions();
+  // client-phone streams (sessions) but is absent from /clients: the server
+  // cannot deliver remote-control commands to it.
+  const phone = { external_id: 'ext:plex:player:client-phone' };
+
+  await assert.rejects(
+    () => monitor.handleSetValue(phone, { external_id: `${phone.external_id}:play` }, 1),
+    /not remotely controllable/,
+  );
+  await assert.rejects(
+    () => monitor.handleSetValue(phone, { external_id: `${phone.external_id}:volume` }, 50),
+    /not remotely controllable/,
+  );
+
+  // Stop falls back to a server-side session termination.
+  await monitor.handleSetValue(phone, { external_id: `${phone.external_id}:stop` }, 1);
+  assert.deepEqual(monitor.api.commands.at(-1), { terminated: 'sess-2' });
+
+  monitor.stop();
+});
+
+test('resetPublicationCache republishes the states of a freshly created device', async () => {
+  const { gladys, monitor } = await createMonitor();
+  await monitor.refreshSessions();
+  gladys.published.length = 0;
+
+  // Steady state: nothing changed, nothing republished.
+  await monitor.refreshSessions();
+  assert.equal(gladys.published.length, 0);
+
+  // The user adds the TV device in Gladys: its states must be sent again.
+  monitor.resetPublicationCache('ext:plex:player:client-tv');
+  await monitor.refreshSessions();
+  const republished = gladys.published.map((s) => s.featureExternalId);
+  assert.ok(republished.includes('ext:plex:player:client-tv:playback-state'));
+  assert.ok(!republished.some((id) => id.startsWith('ext:plex:server:')));
 });
 
 test('handleSetValue clamps the volume and publishes it back', async () => {

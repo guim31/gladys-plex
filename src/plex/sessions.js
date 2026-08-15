@@ -29,6 +29,9 @@ export function normalizeSession(raw) {
     duration: Number(raw.duration ?? 0),
     transcoding: raw.TranscodeSession !== undefined,
     bandwidth: Number(raw.Session?.bandwidth ?? 0), // kbps
+    // Server-side session id, needed to terminate the stream of a player
+    // that is not remotely controllable.
+    sessionId: raw.Session?.id,
   };
 }
 
