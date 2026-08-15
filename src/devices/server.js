@@ -50,7 +50,7 @@ export function libraryFeatureKey(library, kind) {
  * @param {object} gladys - SDK instance.
  * @param {{ friendlyName: string, machineIdentifier: string }} serverInfo
  * @param {Array<{ key: string, title: string, type: string }>} libraries
- * @param {{ poll_frequency: number, library_sensors: boolean }} config
+ * @param {{ library_sensors: boolean }} config
  */
 export function buildServerDevice(gladys, serverInfo, libraries, config) {
   const ids = serverExternalIds(gladys, serverInfo.machineIdentifier);
@@ -116,11 +116,13 @@ export function buildServerDevice(gladys, serverInfo, libraries, config) {
     }
   }
 
+  // No `poll_frequency` here: Gladys only accepts a closed list of fast
+  // frequencies (1 s to 1 min, in ms) for device polling. The integration
+  // refreshes the library statistics on its own timer instead
+  // (config.poll_frequency seconds, see index.js).
   return {
     name: `Plex - ${serverInfo.friendlyName ?? 'Media Server'}`,
     external_id: ids.device,
-    // Gladys polls the server device to refresh the library statistics.
-    poll_frequency: config.poll_frequency,
     features,
   };
 }

@@ -32,6 +32,9 @@ let notifications = null;
 /** @type {ReturnType<typeof setInterval>|null} Fallback session poll. */
 let sessionInterval = null;
 
+/** @type {ReturnType<typeof setInterval>|null} Library statistics poll. */
+let libraryInterval = null;
+
 const NOT_CONFIGURED_MESSAGE = {
   en: 'Fill in the Plex server URL and token in the configuration.',
   fr: "Renseignez l'URL et le jeton du serveur Plex dans la configuration.",
@@ -57,16 +60,10 @@ gladys.onSetValue(async (device, feature, value) => {
   await monitor.handleSetValue(device, feature, value);
 });
 
-// --- Polling: Gladys asks to refresh a device --------------------------------
-// Only the server device declares a poll_frequency: refresh the library
-// statistics (and the sessions while we are at it — it is cheap).
-gladys.onPoll(async () => {
-  if (!monitor) {
-    return;
-  }
-  await monitor.refreshLibraries();
-  await monitor.refreshSessions();
-});
+// --- Polling ------------------------------------------------------------------
+// No device declares a Gladys poll_frequency (the core only accepts fast 1 s -
+// 1 min polling): both refresh loops are owned by the integration (see
+// startLoops), so onPoll is intentionally not registered.
 
 // --- Manifest actions: buttons in the Configuration screen -------------------
 gladys.onAction('test_connection', async () => {
@@ -167,6 +164,12 @@ function startLoops() {
     refreshSessionsSafely();
   }, config.session_poll_frequency * 1_000);
 
+  libraryInterval = setInterval(() => {
+    monitor?.refreshLibraries().catch((err) => {
+      logger.warn(`Library refresh failed: ${err.message}`);
+    });
+  }, config.poll_frequency * 1_000);
+
   notifications = new PlexNotifications(config, {
     onPlaying: () => monitor?.scheduleSessionRefresh(),
   });
@@ -177,6 +180,10 @@ function stopLoops() {
   if (sessionInterval) {
     clearInterval(sessionInterval);
     sessionInterval = null;
+  }
+  if (libraryInterval) {
+    clearInterval(libraryInterval);
+    libraryInterval = null;
   }
   if (notifications) {
     notifications.stop();
