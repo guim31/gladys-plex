@@ -86,6 +86,10 @@ export function buildServerDevice(gladys, serverInfo, libraries, config) {
       external_id: ids.feature(SERVER_FEATURE.NOW_PLAYING),
       category: DEVICE_FEATURE_CATEGORIES.TEXT,
       type: DEVICE_FEATURE_TYPES.TEXT.TEXT,
+      // min/max are meaningless for a text state but the Gladys device
+      // model requires them on every feature (NOT NULL columns).
+      min: 0,
+      max: 1,
       read_only: true,
       has_feedback: false,
       keep_history: false,

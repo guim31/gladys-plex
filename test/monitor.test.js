@@ -96,6 +96,27 @@ test('buildDevices returns the server device plus one device per player', async 
   }
 });
 
+test('every published feature satisfies the Gladys device model', async () => {
+  const { monitor } = await createMonitor();
+  for (const device of monitor.buildDevices()) {
+    assert.equal(
+      device.poll_frequency,
+      undefined,
+      `${device.external_id}: Gladys only accepts
+      a closed list of fast poll frequencies; the integration owns its own timers instead`,
+    );
+    for (const feature of device.features) {
+      // min/max are NOT NULL columns of t_device_feature: adding a device
+      // without them is rejected with an HTTP 422.
+      assert.ok(Number.isFinite(feature.min), `${feature.external_id}: min is required`);
+      assert.ok(Number.isFinite(feature.max), `${feature.external_id}: max is required`);
+      assert.ok(feature.category, `${feature.external_id}: category is required`);
+      assert.ok(feature.type, `${feature.external_id}: type is required`);
+      assert.ok(feature.name, `${feature.external_id}: name is required`);
+    }
+  }
+});
+
 test('library sensors can be disabled from the config', async () => {
   const gladys = createFakeGladys();
   const monitor = new PlexMonitor(gladys, { ...CONFIG, library_sensors: false });
