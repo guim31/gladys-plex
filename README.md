@@ -85,14 +85,13 @@ The same three checks run on every push and pull request
 
 ## Publish
 
-1. Replace `cover.png` with a real Plex-themed 800×534 px image (≤ 150 KB) —
-   the bundled one is the template's plain gradient placeholder.
-2. Make the repository public and add the GitHub topic
-   `gladys-assistant-integration`.
-3. Release from the GitHub UI: **Actions → Release → Run workflow** (patch /
+1. Make sure the repository is public and carries the GitHub topic
+   `gladys-assistant-integration` (the decentralized indexer finds the
+   integration through that topic).
+2. Release from the GitHub UI: **Actions → Release → Run workflow** (patch /
    minor / major). The workflow bumps the version everywhere, pushes the tag
    and builds the multi-arch image to `ghcr.io`.
-4. Validate locally anytime with `npx github:GladysAssistant/integration-store .`
+3. Validate locally anytime with `npx github:GladysAssistant/integration-store .`
 
 ## License
 
