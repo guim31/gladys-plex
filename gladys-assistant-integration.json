@@ -1,0 +1,121 @@
+{
+  "manifest_version": 1,
+  "type": "device",
+  "name": "Plex",
+  "description": {
+    "en": "Control your Plex players: playback, now playing, activity and library sensors.",
+    "fr": "Contrôlez vos lecteurs Plex : lecture, en cours, activité et bibliothèques."
+  },
+  "version": "1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-plex:1.0.0",
+  "gladys_version": ">=4.86.0",
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-plex/main/cover.png",
+  "categories": ["multimedia"],
+  "transports": ["local"],
+  "config_schema": [
+    {
+      "key": "intro",
+      "type": "section",
+      "label": {
+        "en": "Connect to your Plex Media Server",
+        "fr": "Connexion à votre serveur Plex"
+      },
+      "description": {
+        "en": "Enter the local address of your Plex Media Server (for example http://192.168.1.20:32400) and a Plex authentication token (X-Plex-Token). The linked article explains how to find your token from the Plex web app.",
+        "fr": "Indiquez l'adresse locale de votre serveur Plex (par exemple http://192.168.1.20:32400) et un jeton d'authentification Plex (X-Plex-Token). L'article en lien explique comment trouver votre jeton depuis l'application web Plex."
+      },
+      "links": [
+        {
+          "url": "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
+          "label": { "en": "How to find your Plex token", "fr": "Trouver votre jeton Plex" }
+        }
+      ]
+    },
+    {
+      "key": "plex_url",
+      "type": "string",
+      "label": { "en": "Plex server URL", "fr": "URL du serveur Plex" },
+      "description": {
+        "en": "Base URL of the Plex Media Server, including the port (32400 by default).",
+        "fr": "URL de base du serveur Plex, port inclus (32400 par défaut)."
+      },
+      "placeholder": { "en": "http://192.168.1.20:32400" },
+      "required": true
+    },
+    {
+      "key": "plex_token",
+      "type": "secret",
+      "label": { "en": "Plex token (X-Plex-Token)", "fr": "Jeton Plex (X-Plex-Token)" },
+      "required": true
+    },
+    {
+      "key": "session_poll_frequency",
+      "type": "number",
+      "label": {
+        "en": "Playback refresh interval (s)",
+        "fr": "Rafraîchissement de la lecture (s)"
+      },
+      "description": {
+        "en": "How often active playback sessions are refreshed, in seconds. Real-time notifications from the server speed this up when something starts, pauses or stops.",
+        "fr": "Fréquence de rafraîchissement des lectures en cours, en secondes. Les notifications temps réel du serveur accélèrent la mise à jour quand une lecture démarre, se met en pause ou s'arrête."
+      },
+      "required": false,
+      "default": 10,
+      "min": 5,
+      "max": 120
+    },
+    {
+      "key": "poll_frequency",
+      "type": "number",
+      "label": {
+        "en": "Library refresh interval (s)",
+        "fr": "Rafraîchissement des bibliothèques (s)"
+      },
+      "description": {
+        "en": "How often library statistics (item counts) are refreshed, in seconds.",
+        "fr": "Fréquence de rafraîchissement des statistiques des bibliothèques (nombre d'éléments), en secondes."
+      },
+      "required": false,
+      "default": 300,
+      "min": 60,
+      "max": 3600
+    },
+    {
+      "key": "library_sensors",
+      "type": "boolean",
+      "label": { "en": "Library sensors", "fr": "Capteurs de bibliothèques" },
+      "description": {
+        "en": "Add one item-count sensor per Plex library on the server device (plus episodes for TV shows and tracks for music).",
+        "fr": "Ajoute un capteur de compte d'éléments par bibliothèque Plex sur l'appareil serveur (plus les épisodes pour les séries et les pistes pour la musique)."
+      },
+      "required": false,
+      "default": true
+    },
+    {
+      "key": "allow_self_signed",
+      "type": "boolean",
+      "label": {
+        "en": "Accept self-signed certificate",
+        "fr": "Accepter un certificat auto-signé"
+      },
+      "description": {
+        "en": "Only for https URLs: accept the self-signed certificate of the Plex server. Leave off for http URLs.",
+        "fr": "Uniquement pour les URL https : accepte le certificat auto-signé du serveur Plex. Laissez désactivé pour les URL http."
+      },
+      "required": false,
+      "default": false
+    }
+  ],
+  "actions": [
+    {
+      "key": "test_connection",
+      "label": { "en": "Test the Plex connection", "fr": "Tester la connexion Plex" },
+      "timeout_seconds": 30
+    },
+    {
+      "key": "scan_clients",
+      "label": { "en": "Scan for Plex players", "fr": "Rechercher les lecteurs Plex" },
+      "timeout_seconds": 30
+    }
+  ]
+}
