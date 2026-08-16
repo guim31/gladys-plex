@@ -19,7 +19,7 @@ import { PlexApi, PLEX_METADATA_TYPES, PLEX_CLIENT_PORT } from './plex/api.js';
 import {
   normalizeSession,
   commandTypeForMedia,
-  acceptsPlaybackCommands,
+  isPrivateAddress,
   isInMarker,
   remainingMinutes,
   buildActivitySummary,
@@ -118,6 +118,10 @@ export class PlexMonitor {
           machineIdentifier: client.machineIdentifier,
           name: client.name || client.product || client.machineIdentifier,
           product: client.product || '',
+          // Kept for the direct command route: /clients is the one source
+          // that carries the exact port the player listens on.
+          address: client.address || '',
+          port: client.port || null,
         });
       }
     }
@@ -347,6 +351,9 @@ export class PlexMonitor {
       return;
     }
 
+    // The remembered route no longer answers: forget it so the next command
+    // starts from the nominal order again.
+    this.workingRoute.delete(machineIdentifier);
     logger.warn(`Command ${key} failed on every route -> ${failures.join(' | ')}`);
     throw new Error(
       `No route could reach this Plex player for "${key}". Its app must advertise ` +
@@ -371,27 +378,42 @@ export class PlexMonitor {
    */
   commandRoutes(machineIdentifier, session) {
     const routes = [{ name: 'server', options: {} }];
-    if (session?.address) {
-      routes.push({
-        name: 'direct',
-        options: { origin: `http://${session.address}:${PLEX_CLIENT_PORT}` },
-      });
+    const origin = this.directOrigin(machineIdentifier, session);
+    if (origin) {
+      routes.push({ name: 'direct', options: { origin } });
     }
     // A player that answered on one route keeps answering there: try it
     // first so the usual case costs a single request.
     const known = this.workingRoute.get(machineIdentifier);
     if (known) {
       routes.sort((a, b) => (a.name === known ? -1 : b.name === known ? 1 : 0));
-    } else if (
-      session &&
-      !acceptsPlaybackCommands(session) &&
-      !this.controllable.has(machineIdentifier)
-    ) {
-      logger.debug(
-        `Player ${machineIdentifier} does not advertise the "playback" capability in its session`,
-      );
     }
     return routes;
+  }
+
+  /**
+   * Base URL of the direct route to a player, or null when it has none.
+   *
+   * Best source first: the `/clients` entry, which carries the EXACT address
+   * and port the player listens on (TV apps often use 3005, not 32500) and
+   * exists even when the player is idle. Otherwise the active session's
+   * address with the default player port — but only for LOCAL sessions: a
+   * stream watched from outside the home reports a public address, and
+   * knocking on a WAN IP would only waste the command's time budget.
+   *
+   * @param {string} machineIdentifier
+   * @param {object} [session] - Active session of that player, if any.
+   * @returns {string|null}
+   */
+  directOrigin(machineIdentifier, session) {
+    const client = this.players.get(machineIdentifier);
+    if (client?.address && this.controllable.has(machineIdentifier)) {
+      return `http://${client.address}:${client.port || PLEX_CLIENT_PORT}`;
+    }
+    if (session?.address && (session.local || isPrivateAddress(session.address))) {
+      return `http://${session.address}:${PLEX_CLIENT_PORT}`;
+    }
+    return null;
   }
 
   /**

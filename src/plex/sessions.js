@@ -85,6 +85,30 @@ export function commandTypeForMedia(mediaType) {
 }
 
 /**
+ * Whether an address belongs to a private / local network. Used to decide if
+ * the direct command route is worth trying: a session streamed from outside
+ * the home reports a PUBLIC address, and knocking on port 32500 of a random
+ * WAN IP would only waste the command's time budget.
+ * @param {string} address
+ * @returns {boolean}
+ */
+export function isPrivateAddress(address) {
+  if (!address) {
+    return false;
+  }
+  if (/^(10\.|192\.168\.|127\.|169\.254\.)/.test(address)) {
+    return true;
+  }
+  const octets172 = address.match(/^172\.(\d{1,3})\./);
+  if (octets172) {
+    const second = Number(octets172[1]);
+    return second >= 16 && second <= 31;
+  }
+  // IPv6 link-local / unique-local, and plain localhost.
+  return /^(fe80:|f[cd])/i.test(address) || address === '::1' || address === 'localhost';
+}
+
+/**
  * Whether a session's player accepts remotely proxied playback commands.
  * Plex advertises this per session through `protocolCapabilities`; the
  * `playback` controller is the one carrying play/pause/stop/seek/volume.

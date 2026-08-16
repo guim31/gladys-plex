@@ -21,7 +21,7 @@ const logger = createLogger({ name: 'plex-api' });
 export const PLEX_CLIENT_HEADERS = {
   'X-Plex-Client-Identifier': 'gladys-plex-integration',
   'X-Plex-Product': 'Gladys Assistant',
-  'X-Plex-Version': '1.0.2',
+  'X-Plex-Version': '1.0.3',
   'X-Plex-Device-Name': 'Gladys',
   'X-Plex-Platform': 'Node.js',
 };
@@ -179,7 +179,10 @@ export class PlexApi {
       machineIdentifier: c.machineIdentifier,
       name: c.name,
       product: c.product,
+      // Where the player listens for direct commands. The port matters: TV
+      // apps often listen on 3005, not the default 32500.
       address: c.address,
+      port: c.port !== undefined ? Number(c.port) : null,
     }));
   }
 
@@ -207,7 +210,15 @@ export class PlexApi {
    */
   async terminateSession(sessionId, reason = 'Stopped from Gladys Assistant') {
     logger.debug(`Terminating session ${sessionId}`);
-    await this.request('/status/sessions/terminate', { sessionId, reason });
+    // Short budget: this call is the LAST leg of the stop fallback, after up
+    // to two failed command attempts, and the whole chain must fit in the
+    // 5 s Gladys waits for a command acknowledgement.
+    await this.request(
+      '/status/sessions/terminate',
+      { sessionId, reason },
+      {},
+      { timeoutMs: COMMAND_TIMEOUT_MS },
+    );
   }
 
   /**

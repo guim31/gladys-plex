@@ -276,6 +276,48 @@ test('a command the server refuses to relay is retried straight at the player', 
   monitor.stop();
 });
 
+test('the direct route of a /clients player uses its exact address and port', async () => {
+  // Even IDLE (no session), a player listed in /clients keeps a direct
+  // route, built from the address:port the server reported — TV apps often
+  // listen on 3005, not the default 32500.
+  const { monitor } = await createMonitor({ refuseServer: true });
+  const tv = { external_id: 'ext:plex:player:client-tv' };
+
+  await monitor.handleSetValue(tv, { external_id: `${tv.external_id}:play` }, 1);
+  assert.deepEqual(monitor.api.commands.at(-1), {
+    machineIdentifier: 'client-tv',
+    path: '/player/playback/play',
+    params: { type: 'video' },
+    origin: 'http://192.168.1.30:3005',
+  });
+  monitor.stop();
+});
+
+test('no direct route toward the public address of a remote stream', async () => {
+  // A stream watched from outside the home reports a WAN address: knocking
+  // on port 32500 of a public IP would only waste the command time budget.
+  const { monitor } = await createMonitor();
+  const remoteSession = {
+    machineIdentifier: 'client-remote',
+    address: '89.12.34.56',
+    local: false,
+    sessionId: 'sess-9',
+  };
+  const routes = monitor.commandRoutes('client-remote', remoteSession);
+  assert.deepEqual(
+    routes.map((r) => r.name),
+    ['server'],
+  );
+
+  // The same player on the LAN gets its direct route back.
+  const localSession = { ...remoteSession, address: '192.168.1.60', local: true };
+  assert.deepEqual(
+    monitor.commandRoutes('client-remote', localSession).map((r) => r.name),
+    ['server', 'direct'],
+  );
+  monitor.stop();
+});
+
 test('a command refused by Plex reports a clear error, and stop kills the session', async () => {
   const { monitor } = await createMonitor({ refuseCommands: true });
   await monitor.refreshSessions();

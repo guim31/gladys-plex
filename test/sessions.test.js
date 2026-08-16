@@ -4,6 +4,8 @@ import {
   normalizeSession,
   buildNowPlayingTitle,
   commandTypeForMedia,
+  acceptsPlaybackCommands,
+  isPrivateAddress,
   isInMarker,
   remainingMinutes,
   buildActivitySummary,
@@ -41,6 +43,24 @@ test('commandTypeForMedia maps the Plex controller types', () => {
   assert.equal(commandTypeForMedia('photo'), 'photo');
   assert.equal(commandTypeForMedia('episode'), 'video');
   assert.equal(commandTypeForMedia('movie'), 'video');
+});
+
+test('isPrivateAddress recognizes local networks only', () => {
+  assert.equal(isPrivateAddress('192.168.1.44'), true);
+  assert.equal(isPrivateAddress('10.0.0.3'), true);
+  assert.equal(isPrivateAddress('172.16.0.9'), true);
+  assert.equal(isPrivateAddress('172.31.255.1'), true);
+  assert.equal(isPrivateAddress('127.0.0.1'), true);
+  assert.equal(isPrivateAddress('fe80::1'), true);
+  assert.equal(isPrivateAddress('172.32.0.1'), false); // outside 172.16/12
+  assert.equal(isPrivateAddress('89.12.34.56'), false); // public WAN address
+  assert.equal(isPrivateAddress(''), false);
+});
+
+test('acceptsPlaybackCommands reads the playback controller capability', () => {
+  assert.equal(acceptsPlaybackCommands({ protocolCapabilities: ['timeline', 'playback'] }), true);
+  assert.equal(acceptsPlaybackCommands({ protocolCapabilities: ['timeline'] }), false);
+  assert.equal(acceptsPlaybackCommands({}), false);
 });
 
 test('isInMarker detects the playhead inside a marker window', () => {

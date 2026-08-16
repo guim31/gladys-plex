@@ -37,6 +37,8 @@ export const CLIENTS = {
         name: 'TV Salon',
         product: 'Plex for Apple TV',
         address: '192.168.1.30',
+        // TV apps listen on their own port (often 3005), not the default 32500.
+        port: '3005',
       },
     ],
   },
