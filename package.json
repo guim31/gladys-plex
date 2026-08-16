@@ -1,6 +1,6 @@
 {
   "name": "gladys-plex",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Plex Media Server integration for Gladys Assistant: playback control, now playing, activity and library sensors.",
   "type": "module",

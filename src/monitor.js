@@ -19,6 +19,7 @@ import { PlexApi, PLEX_METADATA_TYPES } from './plex/api.js';
 import {
   normalizeSession,
   commandTypeForMedia,
+  acceptsPlaybackCommands,
   isInMarker,
   remainingMinutes,
   buildActivitySummary,
@@ -61,14 +62,16 @@ export class PlexMonitor {
     /** @type {Map<string, { machineIdentifier: string, name: string, product: string }>} */
     this.players = new Map();
     /**
-     * Players the server can reach for remote-control commands (the /clients
-     * list). A player only seen through its sessions — a phone without
-     * "Advertise as player" — is NOT in this set: commands proxied to it are
-     * silently dropped by the server, so we reject them with a clear error
-     * instead (and fall back to a server-side session kill for `stop`).
+     * Players advertised in the legacy `/clients` list. Empty on most modern
+     * servers (clients no longer announce themselves over GDM), so it is only
+     * ONE of the controllability hints — the per-session
+     * `protocolCapabilities` is the reliable one. Commands are attempted
+     * regardless; this only drives the warning logs.
      * @type {Set<string>}
      */
     this.controllable = new Set();
+    /** @type {Set<string>} Players muted by us (Plex has no toggle command). */
+    this.mutedPlayers = new Set();
     /** @type {Map<string, object>} Active sessions by player machineIdentifier. */
     this.activeSessions = new Map();
     /** @type {Map<string|number, Array<object>>} Markers by media ratingKey. */
@@ -267,40 +270,33 @@ export class PlexMonitor {
     const key = playerFeatureKey(feature.external_id, ids);
     const session = this.activeSessions.get(machineIdentifier);
     const commandType = commandTypeForMedia(session?.mediaType ?? 'video');
-    const controllable = this.controllable.has(machineIdentifier);
 
     if (PLAYER_COMMAND_PATHS[key]) {
-      if (controllable) {
-        await this.api.playerCommand(machineIdentifier, PLAYER_COMMAND_PATHS[key], {
-          type: commandType,
-        });
-        logger.info(`Command ${key} sent to player ${machineIdentifier}`);
-      } else if (key === PLAYER_FEATURE.STOP && session?.sessionId) {
-        // The server cannot reach this player: kill its stream server-side.
-        await this.api.terminateSession(session.sessionId);
-        logger.info(`Session of ${machineIdentifier} terminated server-side (stop fallback)`);
-      } else {
-        throw new Error(
-          `Player ${machineIdentifier} is not remotely controllable: enable ` +
-            `"Advertise as player" in its Plex app, then run "Scan for Plex players".`,
-        );
-      }
-    } else if (key === PLAYER_FEATURE.VOLUME || key === PLAYER_FEATURE.MUTE) {
-      if (!controllable) {
-        throw new Error(
-          `Player ${machineIdentifier} is not remotely controllable: enable ` +
-            `"Advertise as player" in its Plex app, then run "Scan for Plex players".`,
-        );
-      }
-      const params =
-        key === PLAYER_FEATURE.VOLUME
-          ? { volume: Math.max(0, Math.min(100, Math.round(value))) }
-          : { mute: value === 1 ? 1 : 0 };
-      await this.api.playerCommand(machineIdentifier, '/player/playback/setParameters', {
+      await this.sendPlayerCommand(machineIdentifier, key, PLAYER_COMMAND_PATHS[key], {
         type: commandType,
-        ...params,
       });
-      await this.gladys.publishState(feature.external_id, Object.values(params)[0]);
+    } else if (key === PLAYER_FEATURE.VOLUME) {
+      const volume = Math.max(0, Math.min(100, Math.round(value)));
+      await this.sendPlayerCommand(machineIdentifier, key, '/player/playback/setParameters', {
+        type: commandType,
+        volume,
+      });
+      await this.gladys.publishState(feature.external_id, volume);
+    } else if (key === PLAYER_FEATURE.MUTE) {
+      // Gladys renders mute as a push button: it always sends 1, so the
+      // feature has to behave as a TOGGLE. Plex has no "toggle mute"
+      // command, so we track the state we last set for this player.
+      const muted = !this.mutedPlayers.has(machineIdentifier);
+      await this.sendPlayerCommand(machineIdentifier, key, '/player/playback/setParameters', {
+        type: commandType,
+        mute: muted ? 1 : 0,
+      });
+      if (muted) {
+        this.mutedPlayers.add(machineIdentifier);
+      } else {
+        this.mutedPlayers.delete(machineIdentifier);
+      }
+      await this.gladys.publishState(feature.external_id, muted ? 1 : 0);
     } else {
       throw new Error(`No command handler for ${feature.external_id}`);
     }
@@ -308,6 +304,49 @@ export class PlexMonitor {
     // Playback commands change the session state: refresh shortly after, so
     // the UI reflects the new state without waiting for the next poll.
     this.scheduleSessionRefresh(1_500);
+  }
+
+  /**
+   * Send one command to a player, proxied through the Plex server.
+   *
+   * We always TRY: the legacy `/clients` list is empty on most modern
+   * servers (players no longer announce themselves over GDM), so refusing
+   * upfront would block perfectly controllable apps — Plexamp, Plex Web,
+   * the mobile apps. When the server cannot deliver the command, `stop`
+   * falls back to terminating the stream server-side, which always works.
+   *
+   * @param {string} machineIdentifier - Target player.
+   * @param {string} key - Feature key, for logs and the stop fallback.
+   * @param {string} path - Plex command path.
+   * @param {Record<string, string|number>} params - Command parameters.
+   */
+  async sendPlayerCommand(machineIdentifier, key, path, params) {
+    const session = this.activeSessions.get(machineIdentifier);
+    // Informative only: a player that does not advertise the `playback`
+    // controller is unlikely to react, and the log says so before the user
+    // starts wondering why nothing moved.
+    if (session && !acceptsPlaybackCommands(session) && !this.controllable.has(machineIdentifier)) {
+      logger.warn(
+        `Player ${machineIdentifier} does not advertise the "playback" capability; ` +
+          `trying anyway (enable "Advertise as player" in its Plex app if nothing happens)`,
+      );
+    }
+    try {
+      await this.api.playerCommand(machineIdentifier, path, params);
+      logger.info(`Command ${key} sent to player ${machineIdentifier}`);
+    } catch (err) {
+      if (key === PLAYER_FEATURE.STOP && session?.sessionId) {
+        // The server refused to relay: kill the stream server-side instead.
+        await this.api.terminateSession(session.sessionId);
+        logger.info(`Session of ${machineIdentifier} terminated server-side (stop fallback)`);
+        return;
+      }
+      throw new Error(
+        `Plex refused the "${key}" command for this player (${err.message}). ` +
+          `Enable "Advertise as player" in its Plex app, then run "Scan for Plex players".`,
+        { cause: err },
+      );
+    }
   }
 
   /**

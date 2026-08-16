@@ -23,11 +23,12 @@ const CONFIG = normalizeConfig({
   plex_token: 'secret-token',
 });
 
-function createFakeApi({ sessions = SESSIONS } = {}) {
+function createFakeApi({ sessions = SESSIONS, refuseCommands = false } = {}) {
   const commands = [];
   return {
     commands,
     sessions,
+    refuseCommands,
     async getServerInfo() {
       return { ...SERVER_INFO.MediaContainer };
     },
@@ -49,6 +50,9 @@ function createFakeApi({ sessions = SESSIONS } = {}) {
       return LIBRARY_COUNTS[fixtureKey].MediaContainer.totalSize;
     },
     async playerCommand(machineIdentifier, path, params) {
+      if (this.refuseCommands) {
+        throw new Error('Plex API error on /player/playback/play: HTTP 404');
+      }
       commands.push({ machineIdentifier, path, params });
     },
     async terminateSession(sessionId) {
@@ -217,25 +221,56 @@ test('handleSetValue routes playback commands to controllable players', async ()
   monitor.stop(); // cancel the post-command refresh timers
 });
 
-test('a non-controllable player rejects commands but stop kills its session', async () => {
+test('commands are attempted even when the player is absent from /clients', async () => {
+  // The regression reported on the forum: /clients is empty on modern
+  // servers, so refusing upfront blocked Plexamp / Plex Web / mobile apps
+  // that are perfectly controllable.
   const { monitor } = await createMonitor();
   await monitor.refreshSessions();
-  // client-phone streams (sessions) but is absent from /clients: the server
-  // cannot deliver remote-control commands to it.
+  const phone = { external_id: 'ext:plex:player:client-phone' };
+  assert.ok(!monitor.controllable.has('client-phone'), 'not in the /clients list');
+
+  await monitor.handleSetValue(phone, { external_id: `${phone.external_id}:play` }, 1);
+  assert.deepEqual(monitor.api.commands.at(-1), {
+    machineIdentifier: 'client-phone',
+    path: '/player/playback/play',
+    params: { type: 'music' },
+  });
+  monitor.stop();
+});
+
+test('a command refused by Plex reports a clear error, and stop kills the session', async () => {
+  const { monitor } = await createMonitor({ refuseCommands: true });
+  await monitor.refreshSessions();
   const phone = { external_id: 'ext:plex:player:client-phone' };
 
   await assert.rejects(
     () => monitor.handleSetValue(phone, { external_id: `${phone.external_id}:play` }, 1),
-    /not remotely controllable/,
-  );
-  await assert.rejects(
-    () => monitor.handleSetValue(phone, { external_id: `${phone.external_id}:volume` }, 50),
-    /not remotely controllable/,
+    /Advertise as player/,
   );
 
-  // Stop falls back to a server-side session termination.
+  // Stop falls back to a server-side session termination, which always works.
   await monitor.handleSetValue(phone, { external_id: `${phone.external_id}:stop` }, 1);
   assert.deepEqual(monitor.api.commands.at(-1), { terminated: 'sess-2' });
+
+  monitor.stop();
+});
+
+test('mute toggles instead of always muting', async () => {
+  // Gladys renders mute as a push button: it always sends the value 1, so
+  // the integration has to alternate mute/unmute itself.
+  const { gladys, monitor } = await createMonitor();
+  await monitor.refreshSessions();
+  const device = { external_id: 'ext:plex:player:client-tv' };
+  const mute = { external_id: `${device.external_id}:mute` };
+
+  await monitor.handleSetValue(device, mute, 1);
+  assert.deepEqual(monitor.api.commands.at(-1).params, { type: 'video', mute: 1 });
+  assert.deepEqual(gladys.published.at(-1), { featureExternalId: mute.external_id, state: 1 });
+
+  await monitor.handleSetValue(device, mute, 1);
+  assert.deepEqual(monitor.api.commands.at(-1).params, { type: 'video', mute: 0 });
+  assert.deepEqual(gladys.published.at(-1), { featureExternalId: mute.external_id, state: 0 });
 
   monitor.stop();
 });

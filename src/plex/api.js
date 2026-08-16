@@ -21,7 +21,7 @@ const logger = createLogger({ name: 'plex-api' });
 export const PLEX_CLIENT_HEADERS = {
   'X-Plex-Client-Identifier': 'gladys-plex-integration',
   'X-Plex-Product': 'Gladys Assistant',
-  'X-Plex-Version': '1.0.0',
+  'X-Plex-Version': '1.0.1',
   'X-Plex-Device-Name': 'Gladys',
   'X-Plex-Platform': 'Node.js',
 };

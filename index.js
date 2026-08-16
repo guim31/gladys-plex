@@ -35,6 +35,9 @@ let sessionInterval = null;
 /** @type {ReturnType<typeof setInterval>|null} Library statistics poll. */
 let libraryInterval = null;
 
+/** Increments on every initialize(): only the newest run may publish. */
+let initGeneration = 0;
+
 const NOT_CONFIGURED_MESSAGE = {
   en: 'Fill in the Plex server URL and token in the configuration.',
   fr: "Renseignez l'URL et le jeton du serveur Plex dans la configuration.",
@@ -134,6 +137,13 @@ gladys.on('disconnected', () => {
  * loops. Reports the application-level connection status either way.
  */
 async function initialize() {
+  // Saving the config fires onConfigUpdated while `connected` may still be
+  // initializing: without this guard the two runs would each start their own
+  // poll loop and notification socket (duplicate "Connected to Plex server"
+  // lines in the logs). Only the newest run is allowed to publish anything.
+  const generation = ++initGeneration;
+  const isStale = () => generation !== initGeneration;
+
   stopLoops();
   monitor?.stop();
   monitor = null;
@@ -147,6 +157,11 @@ async function initialize() {
   try {
     const nextMonitor = new PlexMonitor(gladys, config);
     await nextMonitor.init();
+    if (isStale()) {
+      logger.debug('Initialization superseded by a newer one, dropping it');
+      nextMonitor.stop();
+      return;
+    }
     monitor = nextMonitor;
 
     // Publish the devices (idempotent upsert by external_id).
@@ -157,10 +172,16 @@ async function initialize() {
     await monitor.refreshLibraries().catch((err) => {
       logger.warn(`Initial library refresh failed: ${err.message}`);
     });
+    if (isStale()) {
+      return;
+    }
     startLoops();
 
     await gladys.setConnectionStatus(true);
   } catch (err) {
+    if (isStale()) {
+      return;
+    }
     logger.error(`Plex initialization failed: ${err.message}`);
     await gladys
       .setConnectionStatus(false, {

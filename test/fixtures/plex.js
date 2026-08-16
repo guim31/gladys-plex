@@ -61,6 +61,7 @@ export const SESSIONS = {
           title: 'TV Salon',
           product: 'Plex for Apple TV',
           state: 'playing',
+          protocolCapabilities: 'timeline,playback,navigation,mirror,playqueues',
         },
         Session: { id: 'sess-1', bandwidth: 12_000 },
         TranscodeSession: { videoDecision: 'transcode' },
@@ -74,11 +75,15 @@ export const SESSIONS = {
         viewOffset: 30_000,
         duration: 369_000,
         User: { title: 'ana' },
+        // Streaming but NOT remotely controllable: no `playback` controller
+        // and absent from /clients (the "Plexamp on iPad" case reported on
+        // the forum).
         Player: {
           machineIdentifier: 'client-phone',
           title: 'Pixel 9',
           product: 'Plex for Android',
           state: 'paused',
+          protocolCapabilities: 'timeline',
         },
         Session: { id: 'sess-2', bandwidth: 320 },
       },

@@ -21,6 +21,14 @@ export function normalizeSession(raw) {
     playerName: player.title || player.product || player.machineIdentifier,
     playerProduct: player.product || '',
     state: player.state || 'stopped', // 'playing' | 'paused' | 'buffering'
+    // What the client accepts from a remote controller, e.g.
+    // "timeline,playback,navigation,mirror,playqueues". This — NOT the legacy
+    // /clients list, empty on most modern servers — is what tells us whether
+    // playback commands can be proxied to this player.
+    protocolCapabilities: String(player.protocolCapabilities ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean),
     user: raw.User?.title || '',
     mediaType: raw.type || 'video', // 'movie' | 'episode' | 'track' | 'clip' | ...
     ratingKey: raw.ratingKey,
@@ -69,6 +77,17 @@ export function commandTypeForMedia(mediaType) {
     return 'photo';
   }
   return 'video';
+}
+
+/**
+ * Whether a session's player accepts remotely proxied playback commands.
+ * Plex advertises this per session through `protocolCapabilities`; the
+ * `playback` controller is the one carrying play/pause/stop/seek/volume.
+ * @param {{ protocolCapabilities?: Array<string> }} session
+ * @returns {boolean}
+ */
+export function acceptsPlaybackCommands(session) {
+  return (session?.protocolCapabilities ?? []).includes('playback');
 }
 
 /**

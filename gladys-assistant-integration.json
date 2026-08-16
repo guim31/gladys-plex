@@ -6,8 +6,8 @@
     "en": "Control your Plex players: playback, now playing, activity and library sensors.",
     "fr": "Contrôlez vos lecteurs Plex : lecture, en cours, activité et bibliothèques."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/guim31/gladys-plex:1.0.0",
+  "version": "1.0.1",
+  "docker_image": "ghcr.io/guim31/gladys-plex:1.0.1",
   "gladys_version": ">=4.86.0",
   "cover_image": "https://raw.githubusercontent.com/guim31/gladys-plex/main/cover.png",
   "categories": ["multimedia"],
@@ -27,25 +27,36 @@
       "links": [
         {
           "url": "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
-          "label": { "en": "How to find your Plex token", "fr": "Trouver votre jeton Plex" }
+          "label": {
+            "en": "How to find your Plex token",
+            "fr": "Trouver votre jeton Plex"
+          }
         }
       ]
     },
     {
       "key": "plex_url",
       "type": "string",
-      "label": { "en": "Plex server URL", "fr": "URL du serveur Plex" },
+      "label": {
+        "en": "Plex server URL",
+        "fr": "URL du serveur Plex"
+      },
       "description": {
         "en": "Base URL of the Plex Media Server, including the port (32400 by default).",
         "fr": "URL de base du serveur Plex, port inclus (32400 par défaut)."
       },
-      "placeholder": { "en": "http://192.168.1.20:32400" },
+      "placeholder": {
+        "en": "http://192.168.1.20:32400"
+      },
       "required": true
     },
     {
       "key": "plex_token",
       "type": "secret",
-      "label": { "en": "Plex token (X-Plex-Token)", "fr": "Jeton Plex (X-Plex-Token)" },
+      "label": {
+        "en": "Plex token (X-Plex-Token)",
+        "fr": "Jeton Plex (X-Plex-Token)"
+      },
       "required": true
     },
     {
@@ -83,7 +94,10 @@
     {
       "key": "library_sensors",
       "type": "boolean",
-      "label": { "en": "Library sensors", "fr": "Capteurs de bibliothèques" },
+      "label": {
+        "en": "Library sensors",
+        "fr": "Capteurs de bibliothèques"
+      },
       "description": {
         "en": "Add one item-count sensor per Plex library on the server device (plus episodes for TV shows and tracks for music).",
         "fr": "Ajoute un capteur de compte d'éléments par bibliothèque Plex sur l'appareil serveur (plus les épisodes pour les séries et les pistes pour la musique)."
@@ -109,12 +123,18 @@
   "actions": [
     {
       "key": "test_connection",
-      "label": { "en": "Test the Plex connection", "fr": "Tester la connexion Plex" },
+      "label": {
+        "en": "Test the Plex connection",
+        "fr": "Tester la connexion Plex"
+      },
       "timeout_seconds": 30
     },
     {
       "key": "scan_clients",
-      "label": { "en": "Scan for Plex players", "fr": "Rechercher les lecteurs Plex" },
+      "label": {
+        "en": "Scan for Plex players",
+        "fr": "Rechercher les lecteurs Plex"
+      },
       "timeout_seconds": 30
     }
   ]
