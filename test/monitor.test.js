@@ -23,12 +23,13 @@ const CONFIG = normalizeConfig({
   plex_token: 'secret-token',
 });
 
-function createFakeApi({ sessions = SESSIONS, refuseCommands = false } = {}) {
+function createFakeApi({ sessions = SESSIONS, refuseCommands = false, refuseServer = false } = {}) {
   const commands = [];
   return {
     commands,
     sessions,
     refuseCommands,
+    refuseServer,
     async getServerInfo() {
       return { ...SERVER_INFO.MediaContainer };
     },
@@ -49,11 +50,22 @@ function createFakeApi({ sessions = SESSIONS, refuseCommands = false } = {}) {
         metadataType === 4 ? `${key}-episodes` : metadataType === 10 ? `${key}-tracks` : key;
       return LIBRARY_COUNTS[fixtureKey].MediaContainer.totalSize;
     },
-    async playerCommand(machineIdentifier, path, params) {
+    async playerCommand(machineIdentifier, path, params, options = {}) {
       if (this.refuseCommands) {
         throw new Error('Plex API error on /player/playback/play: HTTP 404');
       }
-      commands.push({ machineIdentifier, path, params });
+      // `refuseServer` reproduces the real-world case: the server will not
+      // relay to a player it never discovered, but the player answers on its
+      // own address.
+      if (this.refuseServer && options.origin === undefined) {
+        throw new Error('Plex API error on /player/playback/play: HTTP 404');
+      }
+      commands.push({
+        machineIdentifier,
+        path,
+        params,
+        ...(options.origin ? { origin: options.origin } : {}),
+      });
     },
     async terminateSession(sessionId) {
       commands.push({ terminated: sessionId });
@@ -236,6 +248,31 @@ test('commands are attempted even when the player is absent from /clients', asyn
     path: '/player/playback/play',
     params: { type: 'music' },
   });
+  monitor.stop();
+});
+
+test('a command the server refuses to relay is retried straight at the player', async () => {
+  // The forum case: /clients is empty, the server answers 404 on the proxy
+  // route, but the player itself accepts commands on its LAN address.
+  const { monitor } = await createMonitor({ refuseServer: true });
+  await monitor.refreshSessions();
+  const phone = { external_id: 'ext:plex:player:client-phone' };
+
+  await monitor.handleSetValue(phone, { external_id: `${phone.external_id}:play` }, 1);
+  assert.deepEqual(monitor.api.commands.at(-1), {
+    machineIdentifier: 'client-phone',
+    path: '/player/playback/play',
+    params: { type: 'music' },
+    origin: 'http://192.168.1.44:32500',
+  });
+  assert.equal(monitor.workingRoute.get('client-phone'), 'direct');
+
+  // The working route is remembered: the next command goes straight there.
+  monitor.api.commands.length = 0;
+  await monitor.handleSetValue(phone, { external_id: `${phone.external_id}:pause` }, 1);
+  assert.equal(monitor.api.commands.length, 1, 'no wasted attempt on the failing route');
+  assert.equal(monitor.api.commands[0].origin, 'http://192.168.1.44:32500');
+
   monitor.stop();
 });
 

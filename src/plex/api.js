@@ -21,12 +21,20 @@ const logger = createLogger({ name: 'plex-api' });
 export const PLEX_CLIENT_HEADERS = {
   'X-Plex-Client-Identifier': 'gladys-plex-integration',
   'X-Plex-Product': 'Gladys Assistant',
-  'X-Plex-Version': '1.0.1',
+  'X-Plex-Version': '1.0.2',
   'X-Plex-Device-Name': 'Gladys',
   'X-Plex-Platform': 'Node.js',
 };
 
 const REQUEST_TIMEOUT_MS = 10_000;
+
+// Player commands get a much shorter budget than reads: Gladys expects the
+// acknowledgement of a command within 5 s, and a command may be attempted on
+// two routes (through the server, then straight to the player).
+const COMMAND_TIMEOUT_MS = 2_000;
+
+// Port a Plex client advertising itself as a player listens on.
+export const PLEX_CLIENT_PORT = 32500;
 
 // Numeric Plex metadata types, used to count episodes/tracks in a library.
 export const PLEX_METADATA_TYPES = {
@@ -60,8 +68,9 @@ export class PlexApi {
    * @param {Record<string, string>} [extraHeaders] - Additional headers.
    * @returns {Promise<object|null>}
    */
-  async request(path, params = {}, extraHeaders = {}) {
-    const url = new URL(this.baseUrl + path);
+  async request(path, params = {}, extraHeaders = {}, options = {}) {
+    const origin = options.origin ?? this.baseUrl;
+    const url = new URL(origin + path);
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, String(value));
     }
@@ -74,10 +83,10 @@ export class PlexApi {
           ...PLEX_CLIENT_HEADERS,
           ...extraHeaders,
         },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(options.timeoutMs ?? REQUEST_TIMEOUT_MS),
       });
     } catch (err) {
-      throw new Error(`Plex server unreachable at ${this.baseUrl}: ${err.message}`, { cause: err });
+      throw new Error(`Plex server unreachable at ${origin}: ${err.message}`, { cause: err });
     }
     if (response.status === 401) {
       throw new Error('Plex authentication failed: check the X-Plex-Token.');
@@ -207,13 +216,16 @@ export class PlexApi {
    * @param {string} path - Command path, e.g. '/player/playback/play'.
    * @param {Record<string, string|number>} [params] - Command parameters.
    */
-  async playerCommand(machineIdentifier, path, params = {}) {
+  async playerCommand(machineIdentifier, path, params = {}, options = {}) {
     this.commandId += 1;
-    logger.debug(`Player command ${path} -> ${machineIdentifier}`);
+    logger.debug(`Player command ${path} -> ${machineIdentifier} (${options.origin ?? 'server'})`);
     await this.request(
       path,
       { ...params, commandID: this.commandId },
       { 'X-Plex-Target-Client-Identifier': machineIdentifier },
+      // Gladys acks a command within 5 s: keep every attempt short so the
+      // server route, the direct route and the fallback all fit in budget.
+      { timeoutMs: COMMAND_TIMEOUT_MS, ...options },
     );
   }
 }

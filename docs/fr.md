@@ -77,10 +77,26 @@ Les lecteurs apparaissent automatiquement :
 - tout lecteur qui **démarre une lecture** est découvert à la volée et publié
   dans l'onglet Découverte, même s'il n'est pas contrôlable à distance.
 
-Note : tous les clients Plex n'acceptent pas le contrôle à distance. Un
-lecteur doit s'annoncer auprès de votre serveur (c'est le cas de la plupart
-des applications TV et bureau ; certaines applications mobiles demandent
-d'activer le réglage « S'annoncer comme lecteur »).
+### Quels lecteurs sont pilotables ?
+
+Voir un lecteur et le **piloter** sont deux choses différentes : les capteurs
+(titre en cours, état, temps restant) fonctionnent pour **tous** les lecteurs,
+mais les boutons n'agissent que sur ceux qui **acceptent le contrôle à
+distance**.
+
+- ✅ Les applications **TV / box / console** (Android TV, Apple TV, Roku…)
+  s'annoncent comme lecteurs par défaut : tout fonctionne.
+- ⚠️ Les applications **mobiles, Plexamp et Plex Web** ne le font
+  généralement pas. Activez « **S'annoncer comme lecteur** » dans leurs
+  réglages (souvent dans « Contrôle à distance ») — sans ce réglage, l'appli
+  n'écoute aucune commande et **aucun logiciel ne peut la piloter**, Gladys
+  comme l'application Plex elle-même.
+
+L'intégration tente deux chemins avant d'abandonner : via le **serveur**
+(pour les lecteurs qu'il a découverts), puis **directement vers le lecteur**
+sur son adresse locale (port 32500) — le chemin qu'utilise Plex pour
+« caster ». Le bouton **Stop** dispose en plus d'un filet de sécurité :
+il coupe la lecture côté serveur, ce qui marche avec n'importe quel lecteur.
 
 ## Idées d'automatisations
 

@@ -84,6 +84,8 @@ export const SESSIONS = {
           product: 'Plex for Android',
           state: 'paused',
           protocolCapabilities: 'timeline',
+          address: '192.168.1.44',
+          local: '1',
         },
         Session: { id: 'sess-2', bandwidth: 320 },
       },

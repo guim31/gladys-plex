@@ -15,7 +15,7 @@
 // -----------------------------------------------------------------------------
 
 import { createLogger } from '@gladysassistant/integration-sdk';
-import { PlexApi, PLEX_METADATA_TYPES } from './plex/api.js';
+import { PlexApi, PLEX_METADATA_TYPES, PLEX_CLIENT_PORT } from './plex/api.js';
 import {
   normalizeSession,
   commandTypeForMedia,
@@ -72,6 +72,8 @@ export class PlexMonitor {
     this.controllable = new Set();
     /** @type {Set<string>} Players muted by us (Plex has no toggle command). */
     this.mutedPlayers = new Set();
+    /** @type {Map<string, 'server'|'direct'>} Route that last reached a player. */
+    this.workingRoute = new Map();
     /** @type {Map<string, object>} Active sessions by player machineIdentifier. */
     this.activeSessions = new Map();
     /** @type {Map<string|number, Array<object>>} Markers by media ratingKey. */
@@ -322,31 +324,74 @@ export class PlexMonitor {
    */
   async sendPlayerCommand(machineIdentifier, key, path, params) {
     const session = this.activeSessions.get(machineIdentifier);
-    // Informative only: a player that does not advertise the `playback`
-    // controller is unlikely to react, and the log says so before the user
-    // starts wondering why nothing moved.
-    if (session && !acceptsPlaybackCommands(session) && !this.controllable.has(machineIdentifier)) {
-      logger.warn(
-        `Player ${machineIdentifier} does not advertise the "playback" capability; ` +
-          `trying anyway (enable "Advertise as player" in its Plex app if nothing happens)`,
-      );
-    }
-    try {
-      await this.api.playerCommand(machineIdentifier, path, params);
-      logger.info(`Command ${key} sent to player ${machineIdentifier}`);
-    } catch (err) {
-      if (key === PLAYER_FEATURE.STOP && session?.sessionId) {
-        // The server refused to relay: kill the stream server-side instead.
-        await this.api.terminateSession(session.sessionId);
-        logger.info(`Session of ${machineIdentifier} terminated server-side (stop fallback)`);
+    const failures = [];
+
+    for (const route of this.commandRoutes(machineIdentifier, session)) {
+      try {
+        await this.api.playerCommand(machineIdentifier, path, params, route.options);
+        logger.info(`Command ${key} sent to player ${machineIdentifier} (${route.name} route)`);
+        // Remember what worked: the next command goes straight there instead
+        // of paying for a failing attempt first.
+        this.workingRoute.set(machineIdentifier, route.name);
         return;
+      } catch (err) {
+        failures.push(`${route.name}: ${err.message}`);
       }
-      throw new Error(
-        `Plex refused the "${key}" command for this player (${err.message}). ` +
-          `Enable "Advertise as player" in its Plex app, then run "Scan for Plex players".`,
-        { cause: err },
+    }
+
+    if (key === PLAYER_FEATURE.STOP && session?.sessionId) {
+      // Nothing could reach the player: kill the stream server-side. This
+      // always works, whatever the player.
+      await this.api.terminateSession(session.sessionId);
+      logger.info(`Session of ${machineIdentifier} terminated server-side (stop fallback)`);
+      return;
+    }
+
+    logger.warn(`Command ${key} failed on every route -> ${failures.join(' | ')}`);
+    throw new Error(
+      `No route could reach this Plex player for "${key}". Its app must advertise ` +
+        `itself as a player to accept remote control: enable "Advertise as player" ` +
+        `(Plex mobile apps: Settings > Remote control) and run "Scan for Plex players".`,
+    );
+  }
+
+  /**
+   * Routes a command may take, best-known first.
+   *
+   * 1. THROUGH THE SERVER (`X-Plex-Target-Client-Identifier`): works for the
+   *    players the server discovered itself — TV apps, consoles. The legacy
+   *    `/clients` path.
+   * 2. STRAIGHT TO THE PLAYER (`http://<lan address>:32500`): the route Plex
+   *    controllers use to cast. It reaches players the server never
+   *    discovered (broadcast blocked, separate VLAN...), provided the app
+   *    advertises itself as a player.
+   *
+   * @param {string} machineIdentifier
+   * @param {object} [session] - Active session of that player, if any.
+   */
+  commandRoutes(machineIdentifier, session) {
+    const routes = [{ name: 'server', options: {} }];
+    if (session?.address) {
+      routes.push({
+        name: 'direct',
+        options: { origin: `http://${session.address}:${PLEX_CLIENT_PORT}` },
+      });
+    }
+    // A player that answered on one route keeps answering there: try it
+    // first so the usual case costs a single request.
+    const known = this.workingRoute.get(machineIdentifier);
+    if (known) {
+      routes.sort((a, b) => (a.name === known ? -1 : b.name === known ? 1 : 0));
+    } else if (
+      session &&
+      !acceptsPlaybackCommands(session) &&
+      !this.controllable.has(machineIdentifier)
+    ) {
+      logger.debug(
+        `Player ${machineIdentifier} does not advertise the "playback" capability in its session`,
       );
     }
+    return routes;
   }
 
   /**

@@ -72,9 +72,24 @@ Players show up automatically:
 - any player that **starts streaming** is discovered on the fly and published
   to the Discovery tab, even if it is not remotely controllable.
 
-Note: not every Plex client accepts remote control. Players must advertise
-themselves to your server (most TV and desktop apps do; some mobile apps ask
-for the "Advertise as player" setting to be enabled).
+### Which players can be controlled?
+
+Seeing a player and **controlling** it are two different things: the sensors
+(now playing, state, remaining time) work for **every** player, but the
+buttons only act on those that **accept remote control**.
+
+- ✅ **TV / set-top box / console apps** (Android TV, Apple TV, Roku…)
+  advertise themselves as players by default: everything works.
+- ⚠️ **Mobile apps, Plexamp and Plex Web** usually do not. Enable
+  "**Advertise as player**" in their settings (often under "Remote control")
+  — without it the app listens to no command at all, and **no software can
+  drive it**, Gladys or the Plex app itself.
+
+The integration tries two routes before giving up: through the **server**
+(for the players it discovered), then **straight to the player** on its LAN
+address (port 32500) — the route Plex uses to cast. **Stop** has an extra
+safety net: it interrupts the playback server-side, which works with any
+player.
 
 ## Automation ideas
 

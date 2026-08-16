@@ -40,6 +40,11 @@ export function normalizeSession(raw) {
     // Server-side session id, needed to terminate the stream of a player
     // that is not remotely controllable.
     sessionId: raw.Session?.id,
+    // LAN address of the player. When the server refuses to relay a command
+    // (its /clients list is empty), we talk to the player directly on this
+    // address — the route Plex controllers use for casting.
+    address: player.address || '',
+    local: player.local === '1' || player.local === 1 || player.local === true,
   };
 }
 
