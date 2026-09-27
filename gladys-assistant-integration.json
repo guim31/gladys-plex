@@ -8,7 +8,7 @@
   },
   "version": "1.0.3",
   "docker_image": "ghcr.io/guim31/gladys-plex:1.0.3",
-  "gladys_version": ">=4.86.0",
+  "gladys_version": ">=5.1.0",
   "cover_image": "https://raw.githubusercontent.com/guim31/gladys-plex/main/cover.png",
   "categories": ["multimedia"],
   "transports": ["local"],
@@ -136,6 +136,652 @@
         "fr": "Rechercher les lecteurs Plex"
       },
       "timeout_seconds": 30
+    }
+  ],
+  "widgets": [
+    {
+      "key": "now_playing",
+      "label": {
+        "en": "Now playing",
+        "fr": "En cours de lecture"
+      },
+      "description": {
+        "en": "Who watches what, and where, with the posters.",
+        "fr": "Qui regarde quoi, et où, avec les affiches."
+      },
+      "icon": "play-circle"
+    },
+    {
+      "key": "player",
+      "label": {
+        "en": "Player",
+        "fr": "Lecteur"
+      },
+      "description": {
+        "en": "One player as a remote: artwork, title, remaining time, buttons.",
+        "fr": "Un lecteur en télécommande : jaquette, titre, temps restant, boutons."
+      },
+      "icon": "tv",
+      "settings": [
+        {
+          "key": "player",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Player",
+            "fr": "Lecteur"
+          },
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "latest_media",
+      "label": {
+        "en": "Latest additions",
+        "fr": "Derniers ajouts"
+      },
+      "description": {
+        "en": "Posters of the movies, series or albums added lately.",
+        "fr": "Affiches des films, séries ou albums ajoutés récemment."
+      },
+      "icon": "film",
+      "settings": [
+        {
+          "key": "kind",
+          "type": "select",
+          "label": {
+            "en": "Show",
+            "fr": "Afficher"
+          },
+          "required": false,
+          "default": "all",
+          "options": [
+            {
+              "value": "all",
+              "label": {
+                "en": "Movies and series",
+                "fr": "Films et séries"
+              }
+            },
+            {
+              "value": "movies",
+              "label": {
+                "en": "Movies",
+                "fr": "Films"
+              }
+            },
+            {
+              "value": "series",
+              "label": {
+                "en": "Series",
+                "fr": "Séries"
+              }
+            },
+            {
+              "value": "music",
+              "label": {
+                "en": "Albums",
+                "fr": "Albums"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scene_triggers": [
+    {
+      "key": "playback_started",
+      "label": {
+        "en": "Playback started",
+        "fr": "Lecture démarrée"
+      },
+      "description": {
+        "en": "A player starts playing a media (also when it moves on to the next episode or track).",
+        "fr": "Un lecteur commence à lire un média (y compris quand il passe à l'épisode ou au morceau suivant)."
+      },
+      "fields": [
+        {
+          "key": "player",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Player",
+            "fr": "Lecteur"
+          },
+          "description": {
+            "en": "Leave empty for any player.",
+            "fr": "Laissez vide pour n'importe quel lecteur."
+          },
+          "required": false
+        },
+        {
+          "key": "media_type",
+          "type": "multi_select",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          },
+          "description": {
+            "en": "Leave empty for any media.",
+            "fr": "Laissez vide pour n'importe quel média."
+          },
+          "required": false,
+          "options": [
+            {
+              "value": "movie",
+              "label": {
+                "en": "Movie",
+                "fr": "Film"
+              }
+            },
+            {
+              "value": "episode",
+              "label": {
+                "en": "TV episode",
+                "fr": "Épisode de série"
+              }
+            },
+            {
+              "value": "music",
+              "label": {
+                "en": "Music",
+                "fr": "Musique"
+              }
+            },
+            {
+              "value": "live_tv",
+              "label": {
+                "en": "Live TV",
+                "fr": "TV en direct"
+              }
+            },
+            {
+              "value": "video",
+              "label": {
+                "en": "Other video",
+                "fr": "Autre vidéo"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Full title",
+            "fr": "Titre complet"
+          },
+          "description": {
+            "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+          }
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Media name",
+            "fr": "Nom du média"
+          }
+        },
+        {
+          "key": "series_name",
+          "type": "string",
+          "label": {
+            "en": "Series name",
+            "fr": "Nom de la série"
+          }
+        },
+        {
+          "key": "media_type",
+          "type": "string",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          }
+        },
+        {
+          "key": "user",
+          "type": "string",
+          "label": {
+            "en": "User",
+            "fr": "Utilisateur"
+          }
+        },
+        {
+          "key": "player_name",
+          "type": "string",
+          "label": {
+            "en": "Player name",
+            "fr": "Nom du lecteur"
+          }
+        }
+      ]
+    },
+    {
+      "key": "playback_paused",
+      "label": {
+        "en": "Playback paused",
+        "fr": "Lecture en pause"
+      },
+      "description": {
+        "en": "A player pauses the media it is playing.",
+        "fr": "Un lecteur met en pause le média en cours."
+      },
+      "fields": [
+        {
+          "key": "player",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Player",
+            "fr": "Lecteur"
+          },
+          "description": {
+            "en": "Leave empty for any player.",
+            "fr": "Laissez vide pour n'importe quel lecteur."
+          },
+          "required": false
+        },
+        {
+          "key": "media_type",
+          "type": "multi_select",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          },
+          "description": {
+            "en": "Leave empty for any media.",
+            "fr": "Laissez vide pour n'importe quel média."
+          },
+          "required": false,
+          "options": [
+            {
+              "value": "movie",
+              "label": {
+                "en": "Movie",
+                "fr": "Film"
+              }
+            },
+            {
+              "value": "episode",
+              "label": {
+                "en": "TV episode",
+                "fr": "Épisode de série"
+              }
+            },
+            {
+              "value": "music",
+              "label": {
+                "en": "Music",
+                "fr": "Musique"
+              }
+            },
+            {
+              "value": "live_tv",
+              "label": {
+                "en": "Live TV",
+                "fr": "TV en direct"
+              }
+            },
+            {
+              "value": "video",
+              "label": {
+                "en": "Other video",
+                "fr": "Autre vidéo"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Full title",
+            "fr": "Titre complet"
+          },
+          "description": {
+            "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+          }
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Media name",
+            "fr": "Nom du média"
+          }
+        },
+        {
+          "key": "series_name",
+          "type": "string",
+          "label": {
+            "en": "Series name",
+            "fr": "Nom de la série"
+          }
+        },
+        {
+          "key": "media_type",
+          "type": "string",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          }
+        },
+        {
+          "key": "user",
+          "type": "string",
+          "label": {
+            "en": "User",
+            "fr": "Utilisateur"
+          }
+        },
+        {
+          "key": "player_name",
+          "type": "string",
+          "label": {
+            "en": "Player name",
+            "fr": "Nom du lecteur"
+          }
+        }
+      ]
+    },
+    {
+      "key": "playback_resumed",
+      "label": {
+        "en": "Playback resumed",
+        "fr": "Lecture reprise"
+      },
+      "description": {
+        "en": "A paused player resumes playing.",
+        "fr": "Un lecteur en pause reprend la lecture."
+      },
+      "fields": [
+        {
+          "key": "player",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Player",
+            "fr": "Lecteur"
+          },
+          "description": {
+            "en": "Leave empty for any player.",
+            "fr": "Laissez vide pour n'importe quel lecteur."
+          },
+          "required": false
+        },
+        {
+          "key": "media_type",
+          "type": "multi_select",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          },
+          "description": {
+            "en": "Leave empty for any media.",
+            "fr": "Laissez vide pour n'importe quel média."
+          },
+          "required": false,
+          "options": [
+            {
+              "value": "movie",
+              "label": {
+                "en": "Movie",
+                "fr": "Film"
+              }
+            },
+            {
+              "value": "episode",
+              "label": {
+                "en": "TV episode",
+                "fr": "Épisode de série"
+              }
+            },
+            {
+              "value": "music",
+              "label": {
+                "en": "Music",
+                "fr": "Musique"
+              }
+            },
+            {
+              "value": "live_tv",
+              "label": {
+                "en": "Live TV",
+                "fr": "TV en direct"
+              }
+            },
+            {
+              "value": "video",
+              "label": {
+                "en": "Other video",
+                "fr": "Autre vidéo"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Full title",
+            "fr": "Titre complet"
+          },
+          "description": {
+            "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+          }
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Media name",
+            "fr": "Nom du média"
+          }
+        },
+        {
+          "key": "series_name",
+          "type": "string",
+          "label": {
+            "en": "Series name",
+            "fr": "Nom de la série"
+          }
+        },
+        {
+          "key": "media_type",
+          "type": "string",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          }
+        },
+        {
+          "key": "user",
+          "type": "string",
+          "label": {
+            "en": "User",
+            "fr": "Utilisateur"
+          }
+        },
+        {
+          "key": "player_name",
+          "type": "string",
+          "label": {
+            "en": "Player name",
+            "fr": "Nom du lecteur"
+          }
+        }
+      ]
+    },
+    {
+      "key": "playback_stopped",
+      "label": {
+        "en": "Playback stopped",
+        "fr": "Lecture arrêtée"
+      },
+      "description": {
+        "en": "A player stops playing (end of the media, or stopped by the user).",
+        "fr": "Un lecteur arrête la lecture (fin du média, ou arrêt par l'utilisateur)."
+      },
+      "fields": [
+        {
+          "key": "player",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Player",
+            "fr": "Lecteur"
+          },
+          "description": {
+            "en": "Leave empty for any player.",
+            "fr": "Laissez vide pour n'importe quel lecteur."
+          },
+          "required": false
+        },
+        {
+          "key": "media_type",
+          "type": "multi_select",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          },
+          "description": {
+            "en": "Leave empty for any media.",
+            "fr": "Laissez vide pour n'importe quel média."
+          },
+          "required": false,
+          "options": [
+            {
+              "value": "movie",
+              "label": {
+                "en": "Movie",
+                "fr": "Film"
+              }
+            },
+            {
+              "value": "episode",
+              "label": {
+                "en": "TV episode",
+                "fr": "Épisode de série"
+              }
+            },
+            {
+              "value": "music",
+              "label": {
+                "en": "Music",
+                "fr": "Musique"
+              }
+            },
+            {
+              "value": "live_tv",
+              "label": {
+                "en": "Live TV",
+                "fr": "TV en direct"
+              }
+            },
+            {
+              "value": "video",
+              "label": {
+                "en": "Other video",
+                "fr": "Autre vidéo"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Full title",
+            "fr": "Titre complet"
+          },
+          "description": {
+            "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+          }
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Media name",
+            "fr": "Nom du média"
+          }
+        },
+        {
+          "key": "series_name",
+          "type": "string",
+          "label": {
+            "en": "Series name",
+            "fr": "Nom de la série"
+          }
+        },
+        {
+          "key": "media_type",
+          "type": "string",
+          "label": {
+            "en": "Media type",
+            "fr": "Type de média"
+          }
+        },
+        {
+          "key": "user",
+          "type": "string",
+          "label": {
+            "en": "User",
+            "fr": "Utilisateur"
+          }
+        },
+        {
+          "key": "player_name",
+          "type": "string",
+          "label": {
+            "en": "Player name",
+            "fr": "Nom du lecteur"
+          }
+        }
+      ]
     }
   ]
 }

@@ -9,10 +9,12 @@ control, activity monitoring, library statistics and intro/credits markers.
 
 ## Features
 
-| Device                | Features                                                                                                                                                           |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Plex Media Server     | Active streams, transcode sessions, streaming bandwidth (kbps), "now playing" summary, one item counter per library (+ episodes / tracks counters)                 |
-| One device per player | Play / Pause / Stop / Previous / Next / Rewind / Forward, volume, mute, playback state (Music widget compatible), now-playing title, remaining time, intro/credits |
+| Device                | Features                                                                                                                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plex Media Server     | Active streams, transcode sessions, streaming bandwidth (kbps), "now playing" summary, one item counter per library (+ episodes / tracks counters)                                                                          |
+| One device per player | Play / Pause / Stop / Previous / Next / Rewind / Forward, volume, mute, playback state (Music widget compatible), now-playing title, remaining time, intro/credits                                                          |
+| Scene triggers        | `playback_started`, `playback_paused`, `playback_resumed`, `playback_stopped` — filtered by player and media type (movie, episode, music, live TV…)                                                                         |
+| Dashboard widgets     | `now_playing` (who watches what, where, with the posters), `player` (one player as a remote: fan art or cover, title, state, remaining time, buttons), `latest_media` (poster grid of the latest movies, seasons or albums) |
 
 Playback states refresh on a fast poll (10 s by default) **and** through the
 real-time WebSocket notification stream of the Plex server, so play/pause/stop
@@ -56,6 +58,16 @@ User documentation (rehosted by Gladys on the Configuration screen):
 - The WebSocket at `/:/websockets/notifications` triggers an immediate
   (debounced) session refresh on every `playing` event; polling remains the
   fallback when the socket cannot connect.
+
+- Scene triggers compare each session snapshot with the previous one (one
+  event per transition, the first snapshot after a connection is only a
+  baseline); refreshes are serialized so a poll and a notification-driven
+  refresh never fire the same event twice.
+- Widget images go through the server's photo transcoder
+  (`/photo/:/transcode?url=<thumb|art>&width&height`): posters in a 300×450
+  box, fan art in 800×450, shrunk again if a result exceeds the 300 KB the
+  core accepts. Image keys derive from the Plex image path, whose trailing
+  timestamp changes with the artwork.
 
 ## Run it locally
 

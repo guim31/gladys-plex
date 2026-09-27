@@ -17,6 +17,7 @@ import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig, isConfigured } from './src/config.js';
 import { PlexMonitor } from './src/monitor.js';
 import { PlexNotifications } from './src/plex/notifications.js';
+import { WIDGET } from './src/widgets.js';
 
 const gladys = new GladysIntegration();
 
@@ -112,6 +113,35 @@ gladys.onAction('scan_clients', async () => {
     en: `${total} Plex players known. New ones appear in the Discovery tab.`,
     fr: `${total} lecteurs Plex connus. Les nouveaux apparaissent dans l'onglet Découverte.`,
   };
+});
+
+// --- Dashboard widgets --------------------------------------------------------
+gladys.onWidgetGet(WIDGET.NOW_PLAYING, async ({ language }) => {
+  if (!monitor) {
+    return { components: [] };
+  }
+  return monitor.nowPlayingContent(language);
+});
+
+gladys.onWidgetGet(WIDGET.PLAYER, async ({ settings, language }) => {
+  if (!monitor) {
+    return { components: [] };
+  }
+  return monitor.playerContent(language, settings?.player);
+});
+
+gladys.onWidgetGet(WIDGET.LATEST_MEDIA, async ({ settings, language }) => {
+  if (!monitor) {
+    return { components: [] };
+  }
+  return monitor.latestContent(language, settings?.kind);
+});
+
+gladys.onWidgetGetImage(async (imageKey) => {
+  if (!monitor) {
+    throw new Error('Plex server not connected');
+  }
+  return monitor.widgetImage(imageKey);
 });
 
 // --- Configuration updated by the user ---------------------------------------

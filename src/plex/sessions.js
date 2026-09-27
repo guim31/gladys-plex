@@ -45,7 +45,83 @@ export function normalizeSession(raw) {
     // address — the route Plex controllers use for casting.
     address: player.address || '',
     local: player.local === '1' || player.local === 1 || player.local === true,
+    // What the widgets and the scene events describe.
+    item: normalizeMetadata(raw),
   };
+}
+
+/** Media categories, as exposed to scenes (keys are forever: never rename). */
+export const MEDIA_TYPE = {
+  MOVIE: 'movie',
+  EPISODE: 'episode',
+  MUSIC: 'music',
+  LIVE_TV: 'live_tv',
+  VIDEO: 'video',
+  OTHER: 'other',
+};
+
+/**
+ * Keep what the widgets and the scene events use from a metadata entry (a
+ * session, or an entry of /library/recentlyAdded).
+ * @param {object} raw
+ */
+export function normalizeMetadata(raw) {
+  const isTrack = raw.type === 'track' || raw.type === 'album';
+  return {
+    ratingKey: raw.ratingKey !== undefined ? String(raw.ratingKey) : null,
+    type: raw.type || 'video',
+    name: raw.title ?? '',
+    // Show of an episode, show of a season, artist of a track or an album.
+    seriesName: raw.type === 'episode' ? (raw.grandparentTitle ?? '') : '',
+    showName: raw.type === 'season' ? (raw.parentTitle ?? '') : '',
+    artist:
+      raw.type === 'track'
+        ? (raw.grandparentTitle ?? '')
+        : raw.type === 'album'
+          ? (raw.parentTitle ?? '')
+          : '',
+    album: raw.type === 'track' ? (raw.parentTitle ?? '') : '',
+    season: Number.isInteger(raw.parentIndex) ? raw.parentIndex : null,
+    episode: Number.isInteger(raw.index) ? raw.index : null,
+    year: Number.isInteger(raw.year) ? raw.year : null,
+    summary: raw.summary ?? '',
+    addedAt: Number.isFinite(Number(raw.addedAt)) ? Number(raw.addedAt) : null,
+    live: raw.live === 1 || raw.live === '1' || raw.live === true,
+    images: {
+      thumb: raw.thumb ?? null,
+      art: raw.art ?? null,
+      parentThumb: raw.parentThumb ?? null,
+      grandparentThumb: raw.grandparentThumb ?? null,
+      grandparentArt: raw.grandparentArt ?? null,
+    },
+    music: isTrack,
+  };
+}
+
+/**
+ * Media category of a metadata entry, for the scene filters.
+ * @param {ReturnType<typeof normalizeMetadata>} item
+ * @returns {string} One of MEDIA_TYPE.
+ */
+export function mediaCategory(item) {
+  if (!item) {
+    return MEDIA_TYPE.OTHER;
+  }
+  if (item.live) {
+    return MEDIA_TYPE.LIVE_TV;
+  }
+  switch (item.type) {
+    case 'movie':
+      return MEDIA_TYPE.MOVIE;
+    case 'episode':
+      return MEDIA_TYPE.EPISODE;
+    case 'track':
+      return MEDIA_TYPE.MUSIC;
+    case 'photo':
+      return MEDIA_TYPE.OTHER;
+    default:
+      return MEDIA_TYPE.VIDEO;
+  }
 }
 
 /**

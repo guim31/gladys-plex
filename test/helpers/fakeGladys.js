@@ -5,6 +5,8 @@
 //   - externalIds(type, platformId)  -> { device, feature(key) }
 //   - publishState / publishStates   -> record calls so tests can assert them
 //   - publishDiscoveredDevices       -> record calls so tests can assert them
+//   - publishSceneEvent              -> record calls so tests can assert them
+//   - requestWidgetRefresh           -> record calls so tests can assert them
 //   - setConnectionStatus            -> record calls so tests can assert them
 // This lets us test the wiring logic (discovery payloads, dispatch, state
 // publication) without a running Gladys server or a real WebSocket.
@@ -15,12 +17,16 @@ export function createFakeGladys() {
   const textStates = [];
   const discovered = [];
   const connectionStatuses = [];
+  const sceneEvents = [];
+  const widgetRefreshes = [];
 
   return {
     published,
     textStates,
     discovered,
     connectionStatuses,
+    sceneEvents,
+    widgetRefreshes,
 
     externalIds(type, platformId) {
       const device = `ext:plex:${type}:${platformId}`;
@@ -50,6 +56,14 @@ export function createFakeGladys() {
 
     async setConnectionStatus(connected, message) {
       connectionStatuses.push({ connected, message });
+    },
+
+    async publishSceneEvent(key, data) {
+      sceneEvents.push({ key, data });
+    },
+
+    async requestWidgetRefresh(key) {
+      widgetRefreshes.push(key);
     },
   };
 }

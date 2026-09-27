@@ -34,6 +34,29 @@ Playback states update every few seconds (configurable), and the integration
 also listens to the real-time notification stream of your server, so a play,
 pause or stop is reflected in Gladys within a second.
 
+## Scenes
+
+Four scene triggers (Gladys 5.1 and later): **Playback started**, **Playback
+paused**, **Playback resumed** and **Playback stopped**. Each one can be
+narrowed to one player and to media types (movie, episode, music, live TV…):
+_a movie starts on the living room TV_ → dim the living room; _playback is
+paused_ → lights back on. The `title`, `name`, `series_name`, `media_type`,
+`user` and `player_name` variables are available to the following actions
+(for example in a message: "{{triggerEvent.data.user}} is watching
+{{triggerEvent.data.title}}").
+
+## Dashboard widgets
+
+- **Now playing**: who watches what, where, with the posters.
+- **Player**: one player as a remote — the artwork of what it plays (or the
+  movie fan art), title, state, remaining time, and the play/pause, stop and
+  next buttons.
+- **Latest additions**: posters of the movies, seasons or albums added
+  lately, with a link to open them in Plex.
+
+The images are resized by your Plex server and served by the integration: the
+browser never talks to Plex directly.
+
 ## Configuration
 
 1. Find the **URL of your Plex Media Server**, usually
