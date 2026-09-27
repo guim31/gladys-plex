@@ -10,12 +10,8 @@
   "docker_image": "ghcr.io/guim31/gladys-plex:1.1.0",
   "gladys_version": ">=5.1.0",
   "cover_image": "https://raw.githubusercontent.com/guim31/gladys-plex/main/cover.png",
-  "categories": [
-    "multimedia"
-  ],
-  "transports": [
-    "local"
-  ],
+  "categories": ["multimedia"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
@@ -162,8 +158,8 @@
         "fr": "Lecteur"
       },
       "description": {
-        "en": "One player as a remote: artwork, title, remaining time, buttons.",
-        "fr": "Un lecteur en télécommande : jaquette, titre, temps restant, boutons."
+        "en": "The current playback as a remote: artwork, title, remaining time, buttons.",
+        "fr": "La lecture en cours en télécommande : jaquette, titre, temps restant, boutons."
       },
       "icon": "tv",
       "settings": [
@@ -175,7 +171,11 @@
             "en": "Player",
             "fr": "Lecteur"
           },
-          "required": true
+          "description": {
+            "en": "Leave empty to follow whatever is playing.",
+            "fr": "Laissez vide pour suivre ce qui est en cours de lecture."
+          },
+          "required": false
         }
       ]
     },

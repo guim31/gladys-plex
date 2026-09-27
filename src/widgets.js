@@ -3,8 +3,8 @@
 //
 //   - now_playing  : who watches what, where, with the posters (a row per
 //                    playback) and two live tiles bound to the server sensors;
-//   - player       : ONE player, as a remote: the artwork of what it plays,
-//                    title, state, remaining time and the playback buttons;
+//   - player       : the current playback (or ONE chosen player), as a
+//                    remote: artwork, title, state, remaining time, buttons;
 //   - latest_media : the posters of the latest additions (movies, seasons,
 //                    albums — Plex already groups new episodes by season).
 //
@@ -53,6 +53,7 @@ const TEXTS = {
     remaining: 'Remaining time',
     state: 'State',
     user: 'User',
+    player: 'Player',
     play: 'Play',
     pause: 'Pause',
     stop: 'Stop',
@@ -71,6 +72,7 @@ const TEXTS = {
     remaining: 'Temps restant',
     state: 'État',
     user: 'Utilisateur',
+    player: 'Lecteur',
     play: 'Lecture',
     pause: 'Pause',
     stop: 'Stop',
@@ -247,11 +249,26 @@ export function buildNowPlayingContent({
 /**
  * Content of the player widget: one player, as a remote.
  * @param {{ session: object|null, playerName: string, featureOf: (key: string) => string,
- *   language: string, register: (artwork: object) => string }} input
- *   `featureOf` gives the external id of one of the player's features.
+ *   language: string, register: (artwork: object) => string, followed?: boolean }} input
+ *   `featureOf` gives the external id of one of the player's features;
+ *   `followed` is set when no player was picked and the widget follows the
+ *   current playback.
  */
-export function buildPlayerContent({ session, playerName, featureOf, language, register }) {
+export function buildPlayerContent({
+  session,
+  playerName,
+  featureOf,
+  language,
+  register,
+  followed = false,
+}) {
   const t = texts(language);
+  if (followed && !session) {
+    return {
+      ttl_seconds: 60,
+      components: [{ type: 'text', variant: 'body', text: t.nothingPlaying }],
+    };
+  }
   if (!session) {
     return {
       ttl_seconds: 60,
@@ -295,6 +312,10 @@ export function buildPlayerContent({ session, playerName, featureOf, language, r
   ];
   if (session.user) {
     status.push({ label: t.user, value: truncate(session.user, 40) });
+  }
+  if (followed) {
+    // No player picked: the widget follows whatever plays, so say where.
+    status.push({ label: t.player, value: truncate(session.playerName, 40) });
   }
   components.push({ type: 'status', items: status });
   const button = (label, icon, style, key) => ({

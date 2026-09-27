@@ -48,9 +48,10 @@ paused_ → lights back on. The `title`, `name`, `series_name`, `media_type`,
 ## Dashboard widgets
 
 - **Now playing**: who watches what, where, with the posters.
-- **Player**: one player as a remote — the artwork of what it plays (or the
-  movie fan art), title, state, remaining time, and the play/pause, stop and
-  next buttons.
+- **Player**: the current playback as a remote — the artwork (or the movie
+  fan art), title, state, remaining time, and the play/pause, stop and next
+  buttons. Leave the "Player" setting empty to follow whatever is playing, or
+  pick a player to follow that one only.
 - **Latest additions**: posters of the movies, seasons or albums added
   lately, with a link to open them in Plex.
 

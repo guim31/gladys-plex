@@ -488,8 +488,9 @@ test('widgets: player remote, overview for the server, latest additions, images'
   assert.equal(player.components[0].text, 'Game of Thrones');
   assert.ok(player.components.some((c) => c.device_feature === 'ext:plex:player:client-tv:pause'));
 
-  const overview = monitor.playerContent('fr', 'ext:plex:server:srv-abc123');
-  assert.ok(overview.components.some((c) => c.type === 'card-list'));
+  const followed = monitor.playerContent('fr', 'ext:plex:server:srv-abc123');
+  assert.ok(!followed.components.some((c) => c.type === 'card-list'), 'never the list');
+  assert.equal(followed.components[0].text, 'Game of Thrones');
 
   const latest = await monitor.latestContent('en', 'movies');
   const [card] = latest.components[0].items;
@@ -516,4 +517,30 @@ test('widget images too large for the core are asked again, smaller', async () =
       [560, 315],
     ],
   );
+});
+
+test('player widget without a player (or with the server): follows the playback', async () => {
+  const { gladys, monitor } = await createMonitor();
+  await monitor.refreshSessions();
+  for (const setting of [undefined, '', 'ext:plex:server:srv-abc123']) {
+    const content = monitor.playerContent('fr', setting);
+    // The phone is paused: the playing TV wins.
+    assert.equal(content.components[0].text, 'Game of Thrones');
+    const status = content.components.find((c) => c.type === 'status');
+    assert.deepEqual(status.items.at(-1), { label: 'Lecteur', value: 'TV Salon' });
+    const pause = content.components.find((c) => c.type === 'button' && c.icon === 'pause');
+    assert.equal(pause.device_feature, 'ext:plex:player:client-tv:pause');
+  }
+
+  monitor.api.sessions = { MediaContainer: {} };
+  await monitor.refreshSessions();
+  assert.deepEqual(monitor.playerContent('fr', undefined).components, [
+    { type: 'text', variant: 'body', text: "Rien n'est en cours de lecture." },
+  ]);
+
+  // A player created in Gladys but unknown since the start keeps its name.
+  gladys.devices = [{ external_id: 'ext:plex:player:chromecast-1', name: 'Plex - Chromecast' }];
+  const idle = monitor.playerContent('fr', 'ext:plex:player:chromecast-1');
+  assert.equal(idle.components[0].text, 'Plex - Chromecast');
+  assert.equal(idle.components[1].text, 'Rien en lecture sur ce lecteur pour le moment.');
 });
