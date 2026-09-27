@@ -51,9 +51,11 @@ regarde {{triggerEvent.data.title}} »).
 ## Widgets du tableau de bord
 
 - **En cours de lecture** : qui regarde quoi, où, avec les affiches.
-- **Lecteur** : un lecteur en télécommande — la jaquette de ce qu'il lit (ou
+- **Lecteur** : la lecture en cours en télécommande — la jaquette (ou
   l'image de fond du film), le titre, l'état, le temps restant et les boutons
-  lecture/pause, stop et suivant.
+  lecture/pause, stop et suivant. Laissez le réglage « Lecteur » vide pour
+  suivre automatiquement ce qui est en cours de lecture, ou choisissez un
+  lecteur pour le suivre lui seul.
 - **Derniers ajouts** : les affiches des films, saisons ou albums ajoutés
   récemment, avec un lien pour les ouvrir dans Plex.
 

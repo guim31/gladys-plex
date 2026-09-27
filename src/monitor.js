@@ -349,18 +349,41 @@ export class PlexMonitor {
    */
   playerContent(language, deviceExternalId) {
     const machineIdentifier = extractPlayerMachineId(deviceExternalId ?? '');
-    const player = machineIdentifier ? this.players.get(machineIdentifier) : null;
-    if (!player) {
-      // The server device (or nothing) was picked: show the overview.
-      return this.nowPlayingContent(language);
+    if (!machineIdentifier) {
+      // No player picked (or the server device): follow the current playback.
+      return this.followedPlaybackContent(language);
     }
+    const player = this.players.get(machineIdentifier);
     const ids = playerExternalIds(this.gladys, machineIdentifier);
     return buildPlayerContent({
       session: this.activeSessions.get(machineIdentifier) ?? null,
-      playerName: buildPlayerDevice(this.gladys, player).name,
+      // A player created in Gladys but not seen since the integration
+      // started (a phone app, a Chromecast): its Gladys name.
+      playerName: player
+        ? buildPlayerDevice(this.gladys, player).name
+        : (this.gladys.devices?.find((d) => d.external_id === deviceExternalId)?.name ?? 'Plex'),
       featureOf: (key) => ids.feature(key),
       language,
       register: (artwork) => this.registerArtwork(artwork),
+    });
+  }
+
+  /**
+   * Player widget without a picked player: the remote of the current
+   * playback — the first one playing, else the first one paused.
+   * @param {string} language
+   */
+  followedPlaybackContent(language) {
+    const sessions = [...this.activeSessions.values()];
+    const session = sessions.find((s) => s.state !== 'paused') ?? sessions[0] ?? null;
+    const ids = session ? playerExternalIds(this.gladys, session.machineIdentifier) : null;
+    return buildPlayerContent({
+      session,
+      playerName: '',
+      featureOf: (key) => ids.feature(key),
+      language,
+      register: (artwork) => this.registerArtwork(artwork),
+      followed: true,
     });
   }
 
