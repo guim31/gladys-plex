@@ -353,7 +353,10 @@ export function buildLatestContent({ items, kind, language, machineIdentifier, r
           return compact({
             title: truncate(title, 60),
             subtitle: subtitle ? truncate(subtitle, 60) : undefined,
-            date: item.addedAt ? new Date(item.addedAt * 1000).toISOString() : undefined,
+            // The grid shows the date INSTEAD of the subtitle: only when
+            // there is nothing better to say.
+            date:
+              !subtitle && item.addedAt ? new Date(item.addedAt * 1000).toISOString() : undefined,
             image: poster ? register(poster) : undefined,
             description: item.summary ? truncate(item.summary, 2000) : undefined,
             links: itemLinks(machineIdentifier, item.ratingKey, language),

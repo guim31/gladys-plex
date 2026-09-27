@@ -204,7 +204,7 @@ test('latest_media: seasons under their show, filtered by kind, linked to Plex',
   const [season, movie] = content.components[0].items;
   assert.equal(season.title, 'Pioneer One');
   assert.equal(season.subtitle, 'Saison 1');
-  assert.equal(season.date, '2026-09-27T18:19:21.000Z');
+  assert.equal(season.date, undefined, 'the grid would show the date instead of the subtitle');
   assert.equal(movie.subtitle, '2015');
   assert.equal(movie.description, 'A sheep.');
   assert.equal(content.components[0].items.length, 2, 'albums only under "music"');
@@ -217,6 +217,16 @@ test('latest_media: seasons under their show, filtered by kind, linked to Plex',
     register,
   });
   assert.equal(music.components[0].items[0].subtitle, 'Test Artist');
+  const undated = buildLatestContent({
+    items: [
+      normalizeMetadata({ ratingKey: '5', type: 'movie', title: 'No year', addedAt: 1790533161 }),
+    ],
+    kind: 'movies',
+    language: 'en',
+    machineIdentifier: 'srv',
+    register,
+  });
+  assert.equal(undated.components[0].items[0].date, '2026-09-27T18:19:21.000Z');
   const none = buildLatestContent({
     items: [],
     kind: 'movies',
