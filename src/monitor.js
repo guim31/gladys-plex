@@ -17,6 +17,7 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 import { PlexApi, PLEX_METADATA_TYPES, PLEX_CLIENT_PORT } from './plex/api.js';
 import {
+  normalizeMetadata,
   normalizeSession,
   commandTypeForMedia,
   isPrivateAddress,
@@ -38,7 +39,22 @@ import {
   PLAYER_COMMAND_PATHS,
 } from './devices/player.js';
 
+import { diffPlayback, playbackOf, buildEventData } from './scene-events.js';
+import {
+  WIDGET,
+  IMAGE_BOX,
+  buildNowPlayingContent,
+  buildPlayerContent,
+  buildLatestContent,
+  imageKey,
+} from './widgets.js';
+
 const logger = createLogger({ name: 'plex-monitor' });
+
+// The core refuses widget images over 300 KB; the registry of the artworks
+// the contents point at stays bounded.
+const MAX_WIDGET_IMAGE_BYTES = 300 * 1024;
+const MAX_REGISTERED_IMAGES = 200;
 
 // Text published on a player with no active session.
 const IDLE_TEXT = '-';
@@ -81,6 +97,14 @@ export class PlexMonitor {
     /** @type {Map<string, number|string>} Last published value by feature external id. */
     this.lastPublished = new Map();
     this.refreshTimer = null;
+    /** @type {Map<string, { itemId: string, paused: boolean }>} Playback snapshot by player. */
+    this.playback = new Map();
+    this.hasBaseline = false;
+    /** @type {Map<string, { path: string, kind: string }>} Artwork by widget image key. */
+    this.artworks = new Map();
+    // Session refreshes run one at a time: a poll and a notification-driven
+    // refresh arriving together must not interleave (duplicate scene events).
+    this.queue = Promise.resolve();
   }
 
   /**
@@ -144,8 +168,19 @@ export class PlexMonitor {
    * @returns {Promise<boolean>} True when a never-seen player appeared (the
    *   caller should republish the discovered devices).
    */
-  async refreshSessions() {
-    const rawSessions = await this.api.getSessions();
+  refreshSessions() {
+    const run = this.queue.then(async () => this.processSessions(await this.api.getSessions()));
+    // Keep the chain alive whatever happens to this run.
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  /**
+   * Publish the states of a session list and fire the scene triggers.
+   * @param {Array<object>} rawSessions - /status/sessions entries.
+   * @returns {Promise<boolean>} True when a never-seen player appeared.
+   */
+  async processSessions(rawSessions) {
     const sessions = rawSessions.map(normalizeSession).filter(Boolean);
 
     let newPlayers = false;
@@ -153,6 +188,7 @@ export class PlexMonitor {
       newPlayers = this.rememberPlayer(session) || newPlayers;
     }
 
+    const previousSessions = this.activeSessions;
     this.activeSessions = new Map(sessions.map((s) => [s.machineIdentifier, s]));
 
     const states = [];
@@ -223,7 +259,146 @@ export class PlexMonitor {
     if (states.length > 0) {
       await this.gladys.publishStates(states);
     }
+    await this.fireSceneEvents(previousSessions);
     return newPlayers;
+  }
+
+  /**
+   * Compare the playback of every player with the previous snapshot and fire
+   * the matching scene triggers (see scene-events.js).
+   * @param {Map<string, object>} previousSessions - Sessions of the previous snapshot.
+   */
+  async fireSceneEvents(previousSessions) {
+    const current = new Map();
+    for (const [machineIdentifier, session] of this.activeSessions) {
+      current.set(machineIdentifier, playbackOf(session));
+    }
+    const events = this.hasBaseline ? diffPlayback(this.playback, current) : [];
+    this.playback = current;
+    this.hasBaseline = true;
+    if (events.length === 0) {
+      return;
+    }
+    for (const { trigger, key } of events) {
+      // A stopped player has left the list: describe what it was playing.
+      const session = this.activeSessions.get(key) ?? previousSessions.get(key);
+      if (!session) {
+        continue;
+      }
+      const player = this.players.get(key);
+      const data = buildEventData(
+        playerExternalIds(this.gladys, key).device,
+        session,
+        player ? buildPlayerDevice(this.gladys, player).name : session.playerName,
+      );
+      logger.info(`Scene event ${trigger}: ${data.title} on ${session.playerName}`);
+      await this.gladys.publishSceneEvent(trigger, data).catch((err) => {
+        // Older Gladys (no scene declarations) or rate limit: never fatal.
+        logger.debug(`publishSceneEvent(${trigger}) failed: ${err.message}`);
+      });
+    }
+    this.requestWidgetRefresh(WIDGET.NOW_PLAYING);
+    this.requestWidgetRefresh(WIDGET.PLAYER);
+  }
+
+  /** Ask the dashboards to re-pull a widget now (never fatal). */
+  requestWidgetRefresh(key) {
+    if (typeof this.gladys.requestWidgetRefresh !== 'function') {
+      return;
+    }
+    Promise.resolve()
+      .then(() => this.gladys.requestWidgetRefresh(key))
+      .catch((err) => logger.debug(`requestWidgetRefresh(${key}) failed: ${err.message}`));
+  }
+
+  // --- Widgets -----------------------------------------------------------------
+
+  /**
+   * Record an artwork and return its widget image key.
+   * @param {{ path: string, kind: string }} artwork
+   */
+  registerArtwork(artwork) {
+    const key = imageKey(artwork);
+    this.artworks.delete(key);
+    this.artworks.set(key, artwork);
+    while (this.artworks.size > MAX_REGISTERED_IMAGES) {
+      this.artworks.delete(this.artworks.keys().next().value);
+    }
+    return key;
+  }
+
+  /**
+   * Content of the now_playing widget.
+   * @param {string} language
+   */
+  nowPlayingContent(language) {
+    const serverIds = serverExternalIds(this.gladys, this.serverInfo.machineIdentifier);
+    return buildNowPlayingContent({
+      sessions: [...this.activeSessions.values()],
+      streamsFeature: serverIds.feature(SERVER_FEATURE.ACTIVE_STREAMS),
+      transcodesFeature: serverIds.feature(SERVER_FEATURE.TRANSCODE_SESSIONS),
+      language,
+      register: (artwork) => this.registerArtwork(artwork),
+    });
+  }
+
+  /**
+   * Content of the player widget.
+   * @param {string} language
+   * @param {string} [deviceExternalId] - `player` setting of the widget instance.
+   */
+  playerContent(language, deviceExternalId) {
+    const machineIdentifier = extractPlayerMachineId(deviceExternalId ?? '');
+    const player = machineIdentifier ? this.players.get(machineIdentifier) : null;
+    if (!player) {
+      // The server device (or nothing) was picked: show the overview.
+      return this.nowPlayingContent(language);
+    }
+    const ids = playerExternalIds(this.gladys, machineIdentifier);
+    return buildPlayerContent({
+      session: this.activeSessions.get(machineIdentifier) ?? null,
+      playerName: buildPlayerDevice(this.gladys, player).name,
+      featureOf: (key) => ids.feature(key),
+      language,
+      register: (artwork) => this.registerArtwork(artwork),
+    });
+  }
+
+  /**
+   * Content of the latest_media widget.
+   * @param {string} language
+   * @param {string} [kind] - `kind` setting of the widget instance.
+   */
+  async latestContent(language, kind) {
+    const raw = await this.api.getRecentlyAdded(50);
+    return buildLatestContent({
+      items: raw.map(normalizeMetadata),
+      kind,
+      language,
+      machineIdentifier: this.serverInfo.machineIdentifier,
+      register: (artwork) => this.registerArtwork(artwork),
+    });
+  }
+
+  /**
+   * Raw base64 of a widget image, resized by the server.
+   * @param {string} key - Image key of a content built by this monitor.
+   */
+  async widgetImage(key) {
+    const artwork = this.artworks.get(key);
+    if (!artwork) {
+      throw new Error(`Unknown image ${key}`);
+    }
+    let { width, height } = IMAGE_BOX[artwork.kind] ?? IMAGE_BOX.poster;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const bytes = await this.api.getImage(artwork.path, width, height);
+      if (bytes.length <= MAX_WIDGET_IMAGE_BYTES) {
+        return bytes.toString('base64');
+      }
+      width = Math.round(width * 0.7);
+      height = Math.round(height * 0.7);
+    }
+    throw new Error(`Artwork ${artwork.path} too large`);
   }
 
   /**

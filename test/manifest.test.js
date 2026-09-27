@@ -84,3 +84,62 @@ test('the version is consistent across the manifest', () => {
     'docker_image tag must match the manifest version',
   );
 });
+
+test('widgets and scene triggers match what the code registers and fires', async () => {
+  const { WIDGET, LATEST_KINDS } = await import('../src/widgets.js');
+  const { SCENE_TRIGGER } = await import('../src/scene-events.js');
+  const { MEDIA_TYPE } = await import('../src/plex/sessions.js');
+  const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+
+  assert.deepEqual(manifest.widgets.map((w) => w.key).sort(), Object.values(WIDGET).sort());
+  for (const key of Object.keys(WIDGET)) {
+    assert.ok(indexSource.includes(`onWidgetGet(WIDGET.${key}`), `widget ${key} has no handler`);
+  }
+  const latest = manifest.widgets.find((w) => w.key === WIDGET.LATEST_MEDIA);
+  assert.deepEqual(
+    latest.settings[0].options.map((o) => o.value).sort(),
+    Object.keys(LATEST_KINDS).sort(),
+  );
+  for (const widget of manifest.widgets) {
+    for (const text of Object.values(widget.label)) {
+      assert.ok(text.length >= 3 && text.length <= 30, `widget label "${text}"`);
+    }
+    for (const text of Object.values(widget.description ?? {})) {
+      assert.ok(text.length <= 100, `widget description "${text}"`);
+    }
+  }
+
+  assert.deepEqual(
+    manifest.scene_triggers.map((t) => t.key).sort(),
+    Object.values(SCENE_TRIGGER).sort(),
+  );
+  for (const trigger of manifest.scene_triggers) {
+    const mediaType = trigger.fields.find((f) => f.key === 'media_type');
+    assert.deepEqual(
+      mediaType.options.map((o) => o.value).sort(),
+      Object.values(MEDIA_TYPE).sort(),
+    );
+    assert.ok(
+      trigger.fields.every((f) => f.required === false),
+      'filters are optional',
+    );
+  }
+});
+
+test('widgets and scene declarations need Gladys 5.1', () => {
+  // Older cores reject any unknown manifest field: claiming compatibility
+  // below 5.1.0 would make the update fail on them.
+  assert.match(manifest.gladys_version, />=\s*5\.1\.0/);
+});
+
+test('number fields use whole min and default values', () => {
+  // Gladys renders them as <input type="number" min max> WITHOUT step: the
+  // browser then only accepts min + k.
+  for (const field of manifest.config_schema.filter((f) => f.type === 'number')) {
+    for (const bound of ['min', 'max', 'default']) {
+      if (field[bound] !== undefined) {
+        assert.ok(Number.isInteger(field[bound]), `${field.key}.${bound} must be an integer`);
+      }
+    }
+  }
+});

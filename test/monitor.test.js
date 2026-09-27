@@ -70,6 +70,22 @@ function createFakeApi({ sessions = SESSIONS, refuseCommands = false, refuseServ
     async terminateSession(sessionId) {
       commands.push({ terminated: sessionId });
     },
+    images: [],
+    async getImage(path, width, height) {
+      this.images.push({ path, width, height });
+      return this.imageBytes?.(width) ?? Buffer.from([0xff, 0xd8, 0xff]);
+    },
+    async getRecentlyAdded() {
+      return [
+        {
+          ratingKey: '2',
+          type: 'movie',
+          title: 'Sintel',
+          year: 2010,
+          thumb: '/library/metadata/2/thumb/9',
+        },
+      ];
+    },
   };
 }
 
@@ -420,4 +436,84 @@ test('handleSetValue rejects unknown devices and features', async () => {
 test('extractPlayerMachineId parses player external ids only', () => {
   assert.equal(extractPlayerMachineId('ext:plex:player:client-tv'), 'client-tv');
   assert.equal(extractPlayerMachineId('ext:plex:server:srv-abc123'), null);
+});
+
+test('scene events: a baseline first, then one event per transition', async () => {
+  const { gladys, monitor } = await createMonitor();
+  // index.js refreshes right after init(): that first snapshot is the baseline.
+  await monitor.refreshSessions();
+  assert.equal(gladys.sceneEvents.length, 0, 'what already plays is not replayed');
+
+  const [episode, track] = SESSIONS.MediaContainer.Metadata;
+  monitor.api.sessions = {
+    MediaContainer: {
+      Metadata: [{ ...episode, Player: { ...episode.Player, state: 'paused' } }, track],
+    },
+  };
+  await monitor.refreshSessions();
+  monitor.api.sessions = { MediaContainer: { Metadata: [track] } };
+  await monitor.refreshSessions();
+
+  assert.deepEqual(
+    gladys.sceneEvents.map((e) => e.key),
+    ['playback_paused', 'playback_stopped'],
+  );
+  const stopped = gladys.sceneEvents[1].data;
+  assert.equal(stopped.player, 'ext:plex:player:client-tv');
+  assert.equal(
+    stopped.title,
+    'Game of Thrones S01E01 - Winter Is Coming',
+    'a stop describes what played',
+  );
+  assert.equal(stopped.player_name, 'Plex - TV Salon (Plex for Apple TV)');
+  assert.ok(gladys.widgetRefreshes.includes('player'));
+});
+
+test('concurrent refreshes are processed one at a time (no duplicate events)', async () => {
+  const { gladys, monitor } = await createMonitor({ sessions: { MediaContainer: {} } });
+  await monitor.refreshSessions();
+  monitor.api.sessions = SESSIONS;
+  await Promise.all([monitor.refreshSessions(), monitor.refreshSessions()]);
+  assert.deepEqual(gladys.sceneEvents.map((e) => e.key).sort(), [
+    'playback_paused',
+    'playback_started',
+    'playback_started',
+  ]);
+});
+
+test('widgets: player remote, overview for the server, latest additions, images', async () => {
+  const { monitor } = await createMonitor();
+  await monitor.refreshSessions();
+  const player = monitor.playerContent('fr', 'ext:plex:player:client-tv');
+  assert.equal(player.components[0].text, 'Game of Thrones');
+  assert.ok(player.components.some((c) => c.device_feature === 'ext:plex:player:client-tv:pause'));
+
+  const overview = monitor.playerContent('fr', 'ext:plex:server:srv-abc123');
+  assert.ok(overview.components.some((c) => c.type === 'card-list'));
+
+  const latest = await monitor.latestContent('en', 'movies');
+  const [card] = latest.components[0].items;
+  assert.equal(card.title, 'Sintel');
+  const b64 = await monitor.widgetImage(card.image);
+  assert.deepEqual([...Buffer.from(b64, 'base64')], [0xff, 0xd8, 0xff]);
+  assert.deepEqual(monitor.api.images.at(-1), {
+    path: '/library/metadata/2/thumb/9',
+    width: 300,
+    height: 450,
+  });
+  await assert.rejects(monitor.widgetImage('poster-unknown'), /Unknown image/);
+});
+
+test('widget images too large for the core are asked again, smaller', async () => {
+  const { monitor } = await createMonitor();
+  const key = monitor.registerArtwork({ path: '/library/metadata/1/art/5', kind: 'backdrop' });
+  monitor.api.imageBytes = (width) => Buffer.alloc(width >= 800 ? 400 * 1024 : 10, 1);
+  await monitor.widgetImage(key);
+  assert.deepEqual(
+    monitor.api.images.map((i) => [i.width, i.height]),
+    [
+      [800, 450],
+      [560, 315],
+    ],
+  );
 });

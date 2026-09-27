@@ -78,7 +78,7 @@ export class PlexApi {
     try {
       response = await fetch(url, {
         headers: {
-          Accept: 'application/json',
+          Accept: options.binary ? 'image/*' : 'application/json',
           'X-Plex-Token': this.token,
           ...PLEX_CLIENT_HEADERS,
           ...extraHeaders,
@@ -93,6 +93,9 @@ export class PlexApi {
     }
     if (!response.ok) {
       throw new Error(`Plex API error on ${path}: HTTP ${response.status}`);
+    }
+    if (options.binary) {
+      return Buffer.from(await response.arrayBuffer());
     }
     const text = await response.text();
     if (text.length === 0) {
@@ -200,6 +203,37 @@ export class PlexApi {
       startTimeOffset: m.startTimeOffset,
       endTimeOffset: m.endTimeOffset,
     }));
+  }
+
+  /**
+   * Latest additions of every library, newest first. Plex groups the new
+   * episodes of a show into their season.
+   * @param {number} size - How many entries to fetch.
+   * @returns {Promise<Array<object>>} Raw metadata entries (movie, season, album...).
+   */
+  async getRecentlyAdded(size) {
+    const data = await this.request('/library/recentlyAdded', {
+      'X-Plex-Container-Start': 0,
+      'X-Plex-Container-Size': size,
+    });
+    return data?.MediaContainer?.Metadata ?? [];
+  }
+
+  /**
+   * A library image (poster, fan art, album cover), resized by the server's
+   * photo transcoder to fit a dashboard widget.
+   * @param {string} imagePath - `thumb` / `art` path of a metadata entry.
+   * @param {number} width
+   * @param {number} height
+   * @returns {Promise<Buffer>} JPEG bytes.
+   */
+  async getImage(imagePath, width, height) {
+    return this.request(
+      '/photo/:/transcode',
+      { url: imagePath, width, height, minSize: 1, upscale: 0 },
+      {},
+      { binary: true },
+    );
   }
 
   /**

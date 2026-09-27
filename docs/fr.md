@@ -37,6 +37,29 @@ Les états de lecture se rafraîchissent toutes les quelques secondes
 réel du serveur : une lecture, une pause ou un arrêt est reflété dans Gladys
 en moins d'une seconde.
 
+## Scènes
+
+Quatre déclencheurs de scène (Gladys 5.1 et suivants) : **Lecture démarrée**,
+**Lecture en pause**, **Lecture reprise** et **Lecture arrêtée**. Chacun peut
+être limité à un lecteur et à des types de média (film, épisode, musique, TV
+en direct…) : _un film démarre sur la TV du salon_ → tamiser le salon ;
+_la lecture est en pause_ → rallumer. Les variables `title`, `name`,
+`series_name`, `media_type`, `user` et `player_name` sont utilisables dans les
+actions qui suivent (par exemple dans un message : « {{triggerEvent.data.user}}
+regarde {{triggerEvent.data.title}} »).
+
+## Widgets du tableau de bord
+
+- **En cours de lecture** : qui regarde quoi, où, avec les affiches.
+- **Lecteur** : un lecteur en télécommande — la jaquette de ce qu'il lit (ou
+  l'image de fond du film), le titre, l'état, le temps restant et les boutons
+  lecture/pause, stop et suivant.
+- **Derniers ajouts** : les affiches des films, saisons ou albums ajoutés
+  récemment, avec un lien pour les ouvrir dans Plex.
+
+Les images sont redimensionnées par votre serveur Plex et servies par
+l'intégration : le navigateur ne contacte jamais Plex directement.
+
 ## Configuration
 
 1. Trouvez l'**URL de votre serveur Plex**, généralement
