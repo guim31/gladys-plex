@@ -10,12 +10,8 @@
   "docker_image": "ghcr.io/guim31/gladys-plex:1.1.1",
   "gladys_version": ">=5.1.0",
   "cover_image": "https://raw.githubusercontent.com/guim31/gladys-plex/main/cover.png",
-  "categories": [
-    "multimedia"
-  ],
-  "transports": [
-    "local"
-  ],
+  "categories": ["multimedia"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
