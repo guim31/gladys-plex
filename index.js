@@ -18,6 +18,7 @@ import { normalizeConfig, isConfigured } from './src/config.js';
 import { PlexMonitor } from './src/monitor.js';
 import { PlexNotifications } from './src/plex/notifications.js';
 import { WIDGET } from './src/widgets.js';
+import { MESSAGES } from './src/messages.js';
 
 const gladys = new GladysIntegration();
 
@@ -39,10 +40,7 @@ let libraryInterval = null;
 /** Increments on every initialize(): only the newest run may publish. */
 let initGeneration = 0;
 
-const NOT_CONFIGURED_MESSAGE = {
-  en: 'Fill in the Plex server URL and token in the configuration.',
-  fr: "Renseignez l'URL et le jeton du serveur Plex dans la configuration.",
-};
+const NOT_CONFIGURED_MESSAGE = MESSAGES.notConfigured;
 
 // --- Discovery: Gladys asks for the list of devices --------------------------
 gladys.onScanRequest(async () => {
@@ -97,10 +95,7 @@ gladys.onAction('test_connection', async () => {
   const { friendlyName, version } = testMonitor.serverInfo;
   const libraries = testMonitor.libraries.length;
   const players = testMonitor.players.size;
-  return {
-    en: `Connected to "${friendlyName}" (Plex ${version}): ${libraries} libraries, ${players} players found.`,
-    fr: `Connecté à « ${friendlyName} » (Plex ${version}) : ${libraries} bibliothèques, ${players} lecteurs trouvés.`,
-  };
+  return MESSAGES.connected({ friendlyName, version, libraries, players });
 });
 
 gladys.onAction('scan_clients', async () => {
@@ -109,10 +104,7 @@ gladys.onAction('scan_clients', async () => {
   }
   const total = await monitor.discoverPlayers();
   await gladys.publishDiscoveredDevices(monitor.buildDevices());
-  return {
-    en: `${total} Plex players known. New ones appear in the Discovery tab.`,
-    fr: `${total} lecteurs Plex connus. Les nouveaux apparaissent dans l'onglet Découverte.`,
-  };
+  return MESSAGES.playersScanned({ total });
 });
 
 // --- Dashboard widgets --------------------------------------------------------
@@ -214,10 +206,7 @@ async function initialize() {
     }
     logger.error(`Plex initialization failed: ${err.message}`);
     await gladys
-      .setConnectionStatus(false, {
-        en: `Cannot reach the Plex server: ${err.message}`,
-        fr: `Impossible de joindre le serveur Plex : ${err.message}`,
-      })
+      .setConnectionStatus(false, MESSAGES.unreachable({ error: err.message }))
       .catch(() => {});
   }
 }
@@ -280,10 +269,7 @@ async function refreshSessionsSafely() {
     logger.warn(`Session refresh failed (${consecutiveFailures}): ${err.message}`);
     if (consecutiveFailures === 3) {
       await gladys
-        .setConnectionStatus(false, {
-          en: `Lost contact with the Plex server: ${err.message}`,
-          fr: `Contact perdu avec le serveur Plex : ${err.message}`,
-        })
+        .setConnectionStatus(false, MESSAGES.contactLost({ error: err.message }))
         .catch(() => {});
     }
   }

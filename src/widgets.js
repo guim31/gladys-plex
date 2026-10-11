@@ -41,7 +41,8 @@ export const IMAGE_BOX = {
 const MAX_LIST_ITEMS = 8;
 const MAX_GRID_ITEMS = 12;
 
-const TEXTS = {
+/** Widget texts, one table per language of the Gladys interface. */
+export const TEXTS = {
   en: {
     streams: 'Streams',
     transcoding: 'Transcoding',
@@ -80,6 +81,44 @@ const TEXTS = {
     on: 'sur',
     openInPlex: 'Ouvrir dans Plex',
   },
+  de: {
+    streams: 'Wiedergaben',
+    transcoding: 'Transkodierung',
+    playing: 'Wiedergabe',
+    paused: 'Pausiert',
+    nothingPlaying: 'Gerade läuft nichts.',
+    playerIdle: 'Auf diesem Player läuft gerade nichts.',
+    nothingNew: 'Nichts Neues hinzugefügt.',
+    remaining: 'Restzeit',
+    state: 'Status',
+    user: 'Benutzer',
+    player: 'Player',
+    play: 'Abspielen',
+    pause: 'Pause',
+    stop: 'Stopp',
+    next: 'Weiter',
+    on: 'auf',
+    openInPlex: 'In Plex öffnen',
+  },
+  es: {
+    streams: 'Reproducciones',
+    transcoding: 'Transcodificando',
+    playing: 'Reproduciendo',
+    paused: 'En pausa',
+    nothingPlaying: 'No se está reproduciendo nada.',
+    playerIdle: 'No se reproduce nada en este reproductor por ahora.',
+    nothingNew: 'No hay novedades recientes.',
+    remaining: 'Tiempo restante',
+    state: 'Estado',
+    user: 'Usuario',
+    player: 'Reproductor',
+    play: 'Reproducir',
+    pause: 'Pausa',
+    stop: 'Detener',
+    next: 'Siguiente',
+    on: 'en',
+    openInPlex: 'Abrir en Plex',
+  },
 };
 
 /**
@@ -87,11 +126,10 @@ const TEXTS = {
  * @param {unknown} language
  */
 export function texts(language) {
-  return String(language ?? '')
+  const code = String(language ?? '')
     .toLowerCase()
-    .startsWith('fr')
-    ? TEXTS.fr
-    : TEXTS.en;
+    .slice(0, 2);
+  return Object.hasOwn(TEXTS, code) ? TEXTS[code] : TEXTS.en;
 }
 
 /**

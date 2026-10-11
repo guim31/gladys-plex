@@ -4,7 +4,9 @@
   "name": "Plex",
   "description": {
     "en": "Control your Plex players: playback, now playing, activity and library sensors.",
-    "fr": "Contrôlez vos lecteurs Plex : lecture, en cours, activité et bibliothèques."
+    "fr": "Contrôlez vos lecteurs Plex : lecture, en cours, activité et bibliothèques.",
+    "de": "Steuere deine Plex-Player: Wiedergabe, aktuelle Medien, Aktivität und Bibliotheken.",
+    "es": "Controle sus reproductores Plex: reproducción, en curso, actividad y bibliotecas."
   },
   "version": "1.1.1",
   "docker_image": "ghcr.io/guim31/gladys-plex:1.1.1",
@@ -18,18 +20,24 @@
       "type": "section",
       "label": {
         "en": "Connect to your Plex Media Server",
-        "fr": "Connexion à votre serveur Plex"
+        "fr": "Connexion à votre serveur Plex",
+        "de": "Verbindung zu deinem Plex Media Server",
+        "es": "Conexión a su Plex Media Server"
       },
       "description": {
         "en": "Enter the local address of your Plex Media Server (for example http://192.168.1.20:32400) and a Plex authentication token (X-Plex-Token). The linked article explains how to find your token from the Plex web app.",
-        "fr": "Indiquez l'adresse locale de votre serveur Plex (par exemple http://192.168.1.20:32400) et un jeton d'authentification Plex (X-Plex-Token). L'article en lien explique comment trouver votre jeton depuis l'application web Plex."
+        "fr": "Indiquez l'adresse locale de votre serveur Plex (par exemple http://192.168.1.20:32400) et un jeton d'authentification Plex (X-Plex-Token). L'article en lien explique comment trouver votre jeton depuis l'application web Plex.",
+        "de": "Gib die lokale Adresse deines Plex Media Servers (zum Beispiel http://192.168.1.20:32400) und ein Plex-Authentifizierungstoken (X-Plex-Token) ein. Der verlinkte Artikel erklärt, wie du dein Token in der Plex-Web-App findest.",
+        "es": "Introduzca la dirección local de su Plex Media Server (por ejemplo http://192.168.1.20:32400) y un token de autenticación de Plex (X-Plex-Token). El artículo enlazado explica cómo encontrar su token desde la aplicación web de Plex."
       },
       "links": [
         {
           "url": "https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/",
           "label": {
             "en": "How to find your Plex token",
-            "fr": "Trouver votre jeton Plex"
+            "fr": "Trouver votre jeton Plex",
+            "de": "So findest du dein Plex-Token",
+            "es": "Cómo encontrar su token de Plex"
           }
         }
       ]
@@ -39,14 +47,21 @@
       "type": "string",
       "label": {
         "en": "Plex server URL",
-        "fr": "URL du serveur Plex"
+        "fr": "URL du serveur Plex",
+        "de": "URL des Plex-Servers",
+        "es": "URL del servidor Plex"
       },
       "description": {
         "en": "Base URL of the Plex Media Server, including the port (32400 by default).",
-        "fr": "URL de base du serveur Plex, port inclus (32400 par défaut)."
+        "fr": "URL de base du serveur Plex, port inclus (32400 par défaut).",
+        "de": "Basis-URL des Plex Media Servers, inklusive Port (standardmäßig 32400).",
+        "es": "URL base del Plex Media Server, con el puerto incluido (32400 por defecto)."
       },
       "placeholder": {
-        "en": "http://192.168.1.20:32400"
+        "en": "http://192.168.1.20:32400",
+        "fr": "http://192.168.1.20:32400",
+        "de": "http://192.168.1.20:32400",
+        "es": "http://192.168.1.20:32400"
       },
       "required": true
     },
@@ -55,7 +70,9 @@
       "type": "secret",
       "label": {
         "en": "Plex token (X-Plex-Token)",
-        "fr": "Jeton Plex (X-Plex-Token)"
+        "fr": "Jeton Plex (X-Plex-Token)",
+        "de": "Plex-Token (X-Plex-Token)",
+        "es": "Token de Plex (X-Plex-Token)"
       },
       "required": true
     },
@@ -64,11 +81,15 @@
       "type": "number",
       "label": {
         "en": "Playback refresh interval (s)",
-        "fr": "Rafraîchissement de la lecture (s)"
+        "fr": "Rafraîchissement de la lecture (s)",
+        "de": "Aktualisierung der Wiedergabe (s)",
+        "es": "Actualización de la reproducción (s)"
       },
       "description": {
         "en": "How often active playback sessions are refreshed, in seconds. Real-time notifications from the server speed this up when something starts, pauses or stops.",
-        "fr": "Fréquence de rafraîchissement des lectures en cours, en secondes. Les notifications temps réel du serveur accélèrent la mise à jour quand une lecture démarre, se met en pause ou s'arrête."
+        "fr": "Fréquence de rafraîchissement des lectures en cours, en secondes. Les notifications temps réel du serveur accélèrent la mise à jour quand une lecture démarre, se met en pause ou s'arrête.",
+        "de": "Wie oft laufende Wiedergaben aktualisiert werden, in Sekunden. Echtzeit-Benachrichtigungen des Servers beschleunigen die Aktualisierung, wenn eine Wiedergabe startet, pausiert oder stoppt.",
+        "es": "Frecuencia de actualización de las reproducciones en curso, en segundos. Las notificaciones en tiempo real del servidor aceleran la actualización cuando una reproducción empieza, se pausa o se detiene."
       },
       "required": false,
       "default": 10,
@@ -80,11 +101,15 @@
       "type": "number",
       "label": {
         "en": "Library refresh interval (s)",
-        "fr": "Rafraîchissement des bibliothèques (s)"
+        "fr": "Rafraîchissement des bibliothèques (s)",
+        "de": "Aktualisierung der Bibliotheken (s)",
+        "es": "Actualización de las bibliotecas (s)"
       },
       "description": {
         "en": "How often library statistics (item counts) are refreshed, in seconds.",
-        "fr": "Fréquence de rafraîchissement des statistiques des bibliothèques (nombre d'éléments), en secondes."
+        "fr": "Fréquence de rafraîchissement des statistiques des bibliothèques (nombre d'éléments), en secondes.",
+        "de": "Wie oft die Statistiken der Bibliotheken (Anzahl der Elemente) aktualisiert werden, in Sekunden.",
+        "es": "Frecuencia de actualización de las estadísticas de las bibliotecas (número de elementos), en segundos."
       },
       "required": false,
       "default": 300,
@@ -96,11 +121,15 @@
       "type": "boolean",
       "label": {
         "en": "Library sensors",
-        "fr": "Capteurs de bibliothèques"
+        "fr": "Capteurs de bibliothèques",
+        "de": "Bibliotheks-Sensoren",
+        "es": "Sensores de bibliotecas"
       },
       "description": {
         "en": "Add one item-count sensor per Plex library on the server device (plus episodes for TV shows and tracks for music).",
-        "fr": "Ajoute un capteur de compte d'éléments par bibliothèque Plex sur l'appareil serveur (plus les épisodes pour les séries et les pistes pour la musique)."
+        "fr": "Ajoute un capteur de compte d'éléments par bibliothèque Plex sur l'appareil serveur (plus les épisodes pour les séries et les pistes pour la musique).",
+        "de": "Fügt dem Server-Gerät pro Plex-Bibliothek einen Sensor für die Anzahl der Elemente hinzu (plus Episoden bei Serien und Titel bei Musik).",
+        "es": "Añade un sensor de número de elementos por biblioteca de Plex al dispositivo servidor (más los episodios para las series y las pistas para la música)."
       },
       "required": false,
       "default": true
@@ -110,11 +139,15 @@
       "type": "boolean",
       "label": {
         "en": "Accept self-signed certificate",
-        "fr": "Accepter un certificat auto-signé"
+        "fr": "Accepter un certificat auto-signé",
+        "de": "Selbstsigniertes Zertifikat akzeptieren",
+        "es": "Aceptar un certificado autofirmado"
       },
       "description": {
         "en": "Only for https URLs: accept the self-signed certificate of the Plex server. Leave off for http URLs.",
-        "fr": "Uniquement pour les URL https : accepte le certificat auto-signé du serveur Plex. Laissez désactivé pour les URL http."
+        "fr": "Uniquement pour les URL https : accepte le certificat auto-signé du serveur Plex. Laissez désactivé pour les URL http.",
+        "de": "Nur für https-URLs: akzeptiert das selbstsignierte Zertifikat des Plex-Servers. Bei http-URLs deaktiviert lassen.",
+        "es": "Solo para URL https: acepta el certificado autofirmado del servidor Plex. Déjelo desactivado para las URL http."
       },
       "required": false,
       "default": false
@@ -125,7 +158,9 @@
       "key": "test_connection",
       "label": {
         "en": "Test the Plex connection",
-        "fr": "Tester la connexion Plex"
+        "fr": "Tester la connexion Plex",
+        "de": "Plex-Verbindung testen",
+        "es": "Probar la conexión con Plex"
       },
       "timeout_seconds": 30
     },
@@ -133,7 +168,9 @@
       "key": "scan_clients",
       "label": {
         "en": "Scan for Plex players",
-        "fr": "Rechercher les lecteurs Plex"
+        "fr": "Rechercher les lecteurs Plex",
+        "de": "Nach Plex-Playern suchen",
+        "es": "Buscar reproductores Plex"
       },
       "timeout_seconds": 30
     }
@@ -143,11 +180,15 @@
       "key": "now_playing",
       "label": {
         "en": "Now playing",
-        "fr": "En cours de lecture"
+        "fr": "En cours de lecture",
+        "de": "Aktuelle Wiedergabe",
+        "es": "En reproducción"
       },
       "description": {
         "en": "Who watches what, and where, with the posters.",
-        "fr": "Qui regarde quoi, et où, avec les affiches."
+        "fr": "Qui regarde quoi, et où, avec les affiches.",
+        "de": "Wer was wo schaut, mit den Postern.",
+        "es": "Quién ve qué, y dónde, con los pósteres."
       },
       "icon": "play-circle"
     },
@@ -155,11 +196,15 @@
       "key": "player",
       "label": {
         "en": "Player",
-        "fr": "Lecteur"
+        "fr": "Lecteur",
+        "de": "Player",
+        "es": "Reproductor"
       },
       "description": {
         "en": "The current playback as a remote: artwork, title, remaining time, buttons.",
-        "fr": "La lecture en cours en télécommande : jaquette, titre, temps restant, boutons."
+        "fr": "La lecture en cours en télécommande : jaquette, titre, temps restant, boutons.",
+        "de": "Die aktuelle Wiedergabe als Fernbedienung: Cover, Titel, Restzeit, Tasten.",
+        "es": "La reproducción en curso como mando: carátula, título, tiempo restante, botones."
       },
       "icon": "tv",
       "settings": [
@@ -169,11 +214,15 @@
           "source": "devices",
           "label": {
             "en": "Player",
-            "fr": "Lecteur"
+            "fr": "Lecteur",
+            "de": "Player",
+            "es": "Reproductor"
           },
           "description": {
             "en": "Leave empty to follow whatever is playing.",
-            "fr": "Laissez vide pour suivre ce qui est en cours de lecture."
+            "fr": "Laissez vide pour suivre ce qui est en cours de lecture.",
+            "de": "Leer lassen, um der aktuellen Wiedergabe zu folgen.",
+            "es": "Déjelo vacío para seguir lo que se esté reproduciendo."
           },
           "required": false
         }
@@ -183,11 +232,15 @@
       "key": "latest_media",
       "label": {
         "en": "Latest additions",
-        "fr": "Derniers ajouts"
+        "fr": "Derniers ajouts",
+        "de": "Neueste Medien",
+        "es": "Últimas novedades"
       },
       "description": {
         "en": "Posters of the movies, series or albums added lately.",
-        "fr": "Affiches des films, séries ou albums ajoutés récemment."
+        "fr": "Affiches des films, séries ou albums ajoutés récemment.",
+        "de": "Poster der zuletzt hinzugefügten Filme, Serien oder Alben.",
+        "es": "Pósteres de las películas, series o álbumes añadidos recientemente."
       },
       "icon": "film",
       "settings": [
@@ -196,7 +249,9 @@
           "type": "select",
           "label": {
             "en": "Show",
-            "fr": "Afficher"
+            "fr": "Afficher",
+            "de": "Anzeigen",
+            "es": "Mostrar"
           },
           "required": false,
           "default": "all",
@@ -205,28 +260,36 @@
               "value": "all",
               "label": {
                 "en": "Movies and series",
-                "fr": "Films et séries"
+                "fr": "Films et séries",
+                "de": "Filme und Serien",
+                "es": "Películas y series"
               }
             },
             {
               "value": "movies",
               "label": {
                 "en": "Movies",
-                "fr": "Films"
+                "fr": "Films",
+                "de": "Filme",
+                "es": "Películas"
               }
             },
             {
               "value": "series",
               "label": {
                 "en": "Series",
-                "fr": "Séries"
+                "fr": "Séries",
+                "de": "Serien",
+                "es": "Series"
               }
             },
             {
               "value": "music",
               "label": {
                 "en": "Albums",
-                "fr": "Albums"
+                "fr": "Albums",
+                "de": "Alben",
+                "es": "Álbumes"
               }
             }
           ]
@@ -239,11 +302,15 @@
       "key": "playback_started",
       "label": {
         "en": "Playback started",
-        "fr": "Lecture démarrée"
+        "fr": "Lecture démarrée",
+        "de": "Wiedergabe gestartet",
+        "es": "Reproducción iniciada"
       },
       "description": {
         "en": "A player starts playing a media (also when it moves on to the next episode or track).",
-        "fr": "Un lecteur commence à lire un média (y compris quand il passe à l'épisode ou au morceau suivant)."
+        "fr": "Un lecteur commence à lire un média (y compris quand il passe à l'épisode ou au morceau suivant).",
+        "de": "Ein Player beginnt, ein Medium abzuspielen (auch beim Wechsel zur nächsten Episode oder zum nächsten Titel).",
+        "es": "Un reproductor empieza a reproducir un medio (también cuando pasa al siguiente episodio o pista)."
       },
       "fields": [
         {
@@ -252,11 +319,15 @@
           "source": "devices",
           "label": {
             "en": "Player",
-            "fr": "Lecteur"
+            "fr": "Lecteur",
+            "de": "Player",
+            "es": "Reproductor"
           },
           "description": {
             "en": "Leave empty for any player.",
-            "fr": "Laissez vide pour n'importe quel lecteur."
+            "fr": "Laissez vide pour n'importe quel lecteur.",
+            "de": "Leer lassen für jeden Player.",
+            "es": "Déjelo vacío para cualquier reproductor."
           },
           "required": false
         },
@@ -265,11 +336,15 @@
           "type": "multi_select",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           },
           "description": {
             "en": "Leave empty for any media.",
-            "fr": "Laissez vide pour n'importe quel média."
+            "fr": "Laissez vide pour n'importe quel média.",
+            "de": "Leer lassen für jedes Medium.",
+            "es": "Déjelo vacío para cualquier medio."
           },
           "required": false,
           "options": [
@@ -277,42 +352,54 @@
               "value": "movie",
               "label": {
                 "en": "Movie",
-                "fr": "Film"
+                "fr": "Film",
+                "de": "Film",
+                "es": "Película"
               }
             },
             {
               "value": "episode",
               "label": {
                 "en": "TV episode",
-                "fr": "Épisode de série"
+                "fr": "Épisode de série",
+                "de": "Serienepisode",
+                "es": "Episodio de serie"
               }
             },
             {
               "value": "music",
               "label": {
                 "en": "Music",
-                "fr": "Musique"
+                "fr": "Musique",
+                "de": "Musik",
+                "es": "Música"
               }
             },
             {
               "value": "live_tv",
               "label": {
                 "en": "Live TV",
-                "fr": "TV en direct"
+                "fr": "TV en direct",
+                "de": "Live-TV",
+                "es": "TV en directo"
               }
             },
             {
               "value": "video",
               "label": {
                 "en": "Other video",
-                "fr": "Autre vidéo"
+                "fr": "Autre vidéo",
+                "de": "Anderes Video",
+                "es": "Otro vídeo"
               }
             },
             {
               "value": "other",
               "label": {
                 "en": "Other",
-                "fr": "Autre"
+                "fr": "Autre",
+                "de": "Sonstiges",
+                "es": "Otro"
               }
             }
           ]
@@ -324,11 +411,15 @@
           "type": "string",
           "label": {
             "en": "Full title",
-            "fr": "Titre complet"
+            "fr": "Titre complet",
+            "de": "Vollständiger Titel",
+            "es": "Título completo"
           },
           "description": {
             "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
-            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau ».",
+            "de": "Zum Beispiel „Serie S01E02 - Episode“ oder „Künstler - Titel“.",
+            "es": "Por ejemplo «Serie S01E02 - Episodio» o «Artista - Pista»."
           }
         },
         {
@@ -336,7 +427,9 @@
           "type": "string",
           "label": {
             "en": "Media name",
-            "fr": "Nom du média"
+            "fr": "Nom du média",
+            "de": "Name des Mediums",
+            "es": "Nombre del medio"
           }
         },
         {
@@ -344,7 +437,9 @@
           "type": "string",
           "label": {
             "en": "Series name",
-            "fr": "Nom de la série"
+            "fr": "Nom de la série",
+            "de": "Name der Serie",
+            "es": "Nombre de la serie"
           }
         },
         {
@@ -352,7 +447,9 @@
           "type": "string",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           }
         },
         {
@@ -360,7 +457,9 @@
           "type": "string",
           "label": {
             "en": "User",
-            "fr": "Utilisateur"
+            "fr": "Utilisateur",
+            "de": "Benutzer",
+            "es": "Usuario"
           }
         },
         {
@@ -368,7 +467,9 @@
           "type": "string",
           "label": {
             "en": "Player name",
-            "fr": "Nom du lecteur"
+            "fr": "Nom du lecteur",
+            "de": "Name des Players",
+            "es": "Nombre del reproductor"
           }
         }
       ]
@@ -377,11 +478,15 @@
       "key": "playback_paused",
       "label": {
         "en": "Playback paused",
-        "fr": "Lecture en pause"
+        "fr": "Lecture en pause",
+        "de": "Wiedergabe pausiert",
+        "es": "Reproducción en pausa"
       },
       "description": {
         "en": "A player pauses the media it is playing.",
-        "fr": "Un lecteur met en pause le média en cours."
+        "fr": "Un lecteur met en pause le média en cours.",
+        "de": "Ein Player pausiert das laufende Medium.",
+        "es": "Un reproductor pausa el medio en curso."
       },
       "fields": [
         {
@@ -390,11 +495,15 @@
           "source": "devices",
           "label": {
             "en": "Player",
-            "fr": "Lecteur"
+            "fr": "Lecteur",
+            "de": "Player",
+            "es": "Reproductor"
           },
           "description": {
             "en": "Leave empty for any player.",
-            "fr": "Laissez vide pour n'importe quel lecteur."
+            "fr": "Laissez vide pour n'importe quel lecteur.",
+            "de": "Leer lassen für jeden Player.",
+            "es": "Déjelo vacío para cualquier reproductor."
           },
           "required": false
         },
@@ -403,11 +512,15 @@
           "type": "multi_select",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           },
           "description": {
             "en": "Leave empty for any media.",
-            "fr": "Laissez vide pour n'importe quel média."
+            "fr": "Laissez vide pour n'importe quel média.",
+            "de": "Leer lassen für jedes Medium.",
+            "es": "Déjelo vacío para cualquier medio."
           },
           "required": false,
           "options": [
@@ -415,42 +528,54 @@
               "value": "movie",
               "label": {
                 "en": "Movie",
-                "fr": "Film"
+                "fr": "Film",
+                "de": "Film",
+                "es": "Película"
               }
             },
             {
               "value": "episode",
               "label": {
                 "en": "TV episode",
-                "fr": "Épisode de série"
+                "fr": "Épisode de série",
+                "de": "Serienepisode",
+                "es": "Episodio de serie"
               }
             },
             {
               "value": "music",
               "label": {
                 "en": "Music",
-                "fr": "Musique"
+                "fr": "Musique",
+                "de": "Musik",
+                "es": "Música"
               }
             },
             {
               "value": "live_tv",
               "label": {
                 "en": "Live TV",
-                "fr": "TV en direct"
+                "fr": "TV en direct",
+                "de": "Live-TV",
+                "es": "TV en directo"
               }
             },
             {
               "value": "video",
               "label": {
                 "en": "Other video",
-                "fr": "Autre vidéo"
+                "fr": "Autre vidéo",
+                "de": "Anderes Video",
+                "es": "Otro vídeo"
               }
             },
             {
               "value": "other",
               "label": {
                 "en": "Other",
-                "fr": "Autre"
+                "fr": "Autre",
+                "de": "Sonstiges",
+                "es": "Otro"
               }
             }
           ]
@@ -462,11 +587,15 @@
           "type": "string",
           "label": {
             "en": "Full title",
-            "fr": "Titre complet"
+            "fr": "Titre complet",
+            "de": "Vollständiger Titel",
+            "es": "Título completo"
           },
           "description": {
             "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
-            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau ».",
+            "de": "Zum Beispiel „Serie S01E02 - Episode“ oder „Künstler - Titel“.",
+            "es": "Por ejemplo «Serie S01E02 - Episodio» o «Artista - Pista»."
           }
         },
         {
@@ -474,7 +603,9 @@
           "type": "string",
           "label": {
             "en": "Media name",
-            "fr": "Nom du média"
+            "fr": "Nom du média",
+            "de": "Name des Mediums",
+            "es": "Nombre del medio"
           }
         },
         {
@@ -482,7 +613,9 @@
           "type": "string",
           "label": {
             "en": "Series name",
-            "fr": "Nom de la série"
+            "fr": "Nom de la série",
+            "de": "Name der Serie",
+            "es": "Nombre de la serie"
           }
         },
         {
@@ -490,7 +623,9 @@
           "type": "string",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           }
         },
         {
@@ -498,7 +633,9 @@
           "type": "string",
           "label": {
             "en": "User",
-            "fr": "Utilisateur"
+            "fr": "Utilisateur",
+            "de": "Benutzer",
+            "es": "Usuario"
           }
         },
         {
@@ -506,7 +643,9 @@
           "type": "string",
           "label": {
             "en": "Player name",
-            "fr": "Nom du lecteur"
+            "fr": "Nom du lecteur",
+            "de": "Name des Players",
+            "es": "Nombre del reproductor"
           }
         }
       ]
@@ -515,11 +654,15 @@
       "key": "playback_resumed",
       "label": {
         "en": "Playback resumed",
-        "fr": "Lecture reprise"
+        "fr": "Lecture reprise",
+        "de": "Wiedergabe fortgesetzt",
+        "es": "Reproducción reanudada"
       },
       "description": {
         "en": "A paused player resumes playing.",
-        "fr": "Un lecteur en pause reprend la lecture."
+        "fr": "Un lecteur en pause reprend la lecture.",
+        "de": "Ein pausierter Player setzt die Wiedergabe fort.",
+        "es": "Un reproductor en pausa reanuda la reproducción."
       },
       "fields": [
         {
@@ -528,11 +671,15 @@
           "source": "devices",
           "label": {
             "en": "Player",
-            "fr": "Lecteur"
+            "fr": "Lecteur",
+            "de": "Player",
+            "es": "Reproductor"
           },
           "description": {
             "en": "Leave empty for any player.",
-            "fr": "Laissez vide pour n'importe quel lecteur."
+            "fr": "Laissez vide pour n'importe quel lecteur.",
+            "de": "Leer lassen für jeden Player.",
+            "es": "Déjelo vacío para cualquier reproductor."
           },
           "required": false
         },
@@ -541,11 +688,15 @@
           "type": "multi_select",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           },
           "description": {
             "en": "Leave empty for any media.",
-            "fr": "Laissez vide pour n'importe quel média."
+            "fr": "Laissez vide pour n'importe quel média.",
+            "de": "Leer lassen für jedes Medium.",
+            "es": "Déjelo vacío para cualquier medio."
           },
           "required": false,
           "options": [
@@ -553,42 +704,54 @@
               "value": "movie",
               "label": {
                 "en": "Movie",
-                "fr": "Film"
+                "fr": "Film",
+                "de": "Film",
+                "es": "Película"
               }
             },
             {
               "value": "episode",
               "label": {
                 "en": "TV episode",
-                "fr": "Épisode de série"
+                "fr": "Épisode de série",
+                "de": "Serienepisode",
+                "es": "Episodio de serie"
               }
             },
             {
               "value": "music",
               "label": {
                 "en": "Music",
-                "fr": "Musique"
+                "fr": "Musique",
+                "de": "Musik",
+                "es": "Música"
               }
             },
             {
               "value": "live_tv",
               "label": {
                 "en": "Live TV",
-                "fr": "TV en direct"
+                "fr": "TV en direct",
+                "de": "Live-TV",
+                "es": "TV en directo"
               }
             },
             {
               "value": "video",
               "label": {
                 "en": "Other video",
-                "fr": "Autre vidéo"
+                "fr": "Autre vidéo",
+                "de": "Anderes Video",
+                "es": "Otro vídeo"
               }
             },
             {
               "value": "other",
               "label": {
                 "en": "Other",
-                "fr": "Autre"
+                "fr": "Autre",
+                "de": "Sonstiges",
+                "es": "Otro"
               }
             }
           ]
@@ -600,11 +763,15 @@
           "type": "string",
           "label": {
             "en": "Full title",
-            "fr": "Titre complet"
+            "fr": "Titre complet",
+            "de": "Vollständiger Titel",
+            "es": "Título completo"
           },
           "description": {
             "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
-            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau ».",
+            "de": "Zum Beispiel „Serie S01E02 - Episode“ oder „Künstler - Titel“.",
+            "es": "Por ejemplo «Serie S01E02 - Episodio» o «Artista - Pista»."
           }
         },
         {
@@ -612,7 +779,9 @@
           "type": "string",
           "label": {
             "en": "Media name",
-            "fr": "Nom du média"
+            "fr": "Nom du média",
+            "de": "Name des Mediums",
+            "es": "Nombre del medio"
           }
         },
         {
@@ -620,7 +789,9 @@
           "type": "string",
           "label": {
             "en": "Series name",
-            "fr": "Nom de la série"
+            "fr": "Nom de la série",
+            "de": "Name der Serie",
+            "es": "Nombre de la serie"
           }
         },
         {
@@ -628,7 +799,9 @@
           "type": "string",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           }
         },
         {
@@ -636,7 +809,9 @@
           "type": "string",
           "label": {
             "en": "User",
-            "fr": "Utilisateur"
+            "fr": "Utilisateur",
+            "de": "Benutzer",
+            "es": "Usuario"
           }
         },
         {
@@ -644,7 +819,9 @@
           "type": "string",
           "label": {
             "en": "Player name",
-            "fr": "Nom du lecteur"
+            "fr": "Nom du lecteur",
+            "de": "Name des Players",
+            "es": "Nombre del reproductor"
           }
         }
       ]
@@ -653,11 +830,15 @@
       "key": "playback_stopped",
       "label": {
         "en": "Playback stopped",
-        "fr": "Lecture arrêtée"
+        "fr": "Lecture arrêtée",
+        "de": "Wiedergabe gestoppt",
+        "es": "Reproducción detenida"
       },
       "description": {
         "en": "A player stops playing (end of the media, or stopped by the user).",
-        "fr": "Un lecteur arrête la lecture (fin du média, ou arrêt par l'utilisateur)."
+        "fr": "Un lecteur arrête la lecture (fin du média, ou arrêt par l'utilisateur).",
+        "de": "Ein Player beendet die Wiedergabe (Ende des Mediums oder vom Benutzer gestoppt).",
+        "es": "Un reproductor detiene la reproducción (fin del medio, o detenida por el usuario)."
       },
       "fields": [
         {
@@ -666,11 +847,15 @@
           "source": "devices",
           "label": {
             "en": "Player",
-            "fr": "Lecteur"
+            "fr": "Lecteur",
+            "de": "Player",
+            "es": "Reproductor"
           },
           "description": {
             "en": "Leave empty for any player.",
-            "fr": "Laissez vide pour n'importe quel lecteur."
+            "fr": "Laissez vide pour n'importe quel lecteur.",
+            "de": "Leer lassen für jeden Player.",
+            "es": "Déjelo vacío para cualquier reproductor."
           },
           "required": false
         },
@@ -679,11 +864,15 @@
           "type": "multi_select",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           },
           "description": {
             "en": "Leave empty for any media.",
-            "fr": "Laissez vide pour n'importe quel média."
+            "fr": "Laissez vide pour n'importe quel média.",
+            "de": "Leer lassen für jedes Medium.",
+            "es": "Déjelo vacío para cualquier medio."
           },
           "required": false,
           "options": [
@@ -691,42 +880,54 @@
               "value": "movie",
               "label": {
                 "en": "Movie",
-                "fr": "Film"
+                "fr": "Film",
+                "de": "Film",
+                "es": "Película"
               }
             },
             {
               "value": "episode",
               "label": {
                 "en": "TV episode",
-                "fr": "Épisode de série"
+                "fr": "Épisode de série",
+                "de": "Serienepisode",
+                "es": "Episodio de serie"
               }
             },
             {
               "value": "music",
               "label": {
                 "en": "Music",
-                "fr": "Musique"
+                "fr": "Musique",
+                "de": "Musik",
+                "es": "Música"
               }
             },
             {
               "value": "live_tv",
               "label": {
                 "en": "Live TV",
-                "fr": "TV en direct"
+                "fr": "TV en direct",
+                "de": "Live-TV",
+                "es": "TV en directo"
               }
             },
             {
               "value": "video",
               "label": {
                 "en": "Other video",
-                "fr": "Autre vidéo"
+                "fr": "Autre vidéo",
+                "de": "Anderes Video",
+                "es": "Otro vídeo"
               }
             },
             {
               "value": "other",
               "label": {
                 "en": "Other",
-                "fr": "Autre"
+                "fr": "Autre",
+                "de": "Sonstiges",
+                "es": "Otro"
               }
             }
           ]
@@ -738,11 +939,15 @@
           "type": "string",
           "label": {
             "en": "Full title",
-            "fr": "Titre complet"
+            "fr": "Titre complet",
+            "de": "Vollständiger Titel",
+            "es": "Título completo"
           },
           "description": {
             "en": "For example \"Series S01E02 - Episode\" or \"Artist - Track\".",
-            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau »."
+            "fr": "Par exemple « Série S01E02 - Épisode » ou « Artiste - Morceau ».",
+            "de": "Zum Beispiel „Serie S01E02 - Episode“ oder „Künstler - Titel“.",
+            "es": "Por ejemplo «Serie S01E02 - Episodio» o «Artista - Pista»."
           }
         },
         {
@@ -750,7 +955,9 @@
           "type": "string",
           "label": {
             "en": "Media name",
-            "fr": "Nom du média"
+            "fr": "Nom du média",
+            "de": "Name des Mediums",
+            "es": "Nombre del medio"
           }
         },
         {
@@ -758,7 +965,9 @@
           "type": "string",
           "label": {
             "en": "Series name",
-            "fr": "Nom de la série"
+            "fr": "Nom de la série",
+            "de": "Name der Serie",
+            "es": "Nombre de la serie"
           }
         },
         {
@@ -766,7 +975,9 @@
           "type": "string",
           "label": {
             "en": "Media type",
-            "fr": "Type de média"
+            "fr": "Type de média",
+            "de": "Medientyp",
+            "es": "Tipo de medio"
           }
         },
         {
@@ -774,7 +985,9 @@
           "type": "string",
           "label": {
             "en": "User",
-            "fr": "Utilisateur"
+            "fr": "Utilisateur",
+            "de": "Benutzer",
+            "es": "Usuario"
           }
         },
         {
@@ -782,7 +995,9 @@
           "type": "string",
           "label": {
             "en": "Player name",
-            "fr": "Nom du lecteur"
+            "fr": "Nom du lecteur",
+            "de": "Name des Players",
+            "es": "Nombre del reproductor"
           }
         }
       ]
