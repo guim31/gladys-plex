@@ -123,7 +123,7 @@ export function buildServerDevice(gladys, serverInfo, libraries, config) {
   // No `poll_frequency` here: Gladys only accepts a closed list of fast
   // frequencies (1 s to 1 min, in ms) for device polling. The integration
   // refreshes the library statistics on its own timer instead
-  // (config.poll_frequency seconds, see index.js).
+  // (config.poll_frequency seconds, see src/loops.js).
   return {
     name: `Plex - ${serverInfo.friendlyName ?? 'Media Server'}`,
     external_id: ids.device,

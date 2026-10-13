@@ -77,6 +77,8 @@ export class PlexMonitor {
     this.libraries = [];
     /** @type {Map<string, { machineIdentifier: string, name: string, product: string }>} */
     this.players = new Map();
+    /** A player was remembered but not yet offered in the Discovery tab. */
+    this.discoveryPending = false;
     /**
      * Players advertised in the legacy `/clients` list. Empty on most modern
      * servers (clients no longer announce themselves over GDM), so it is only
@@ -291,7 +293,7 @@ export class PlexMonitor {
         session,
         player ? buildPlayerDevice(this.gladys, player).name : session.playerName,
       );
-      logger.info(`Scene event ${trigger}: ${data.title} on ${session.playerName}`);
+      logger.debug(`Scene event ${trigger}: ${data.title} on ${session.playerName}`);
       await this.gladys.publishSceneEvent(trigger, data).catch((err) => {
         // Older Gladys (no scene declarations) or rate limit: never fatal.
         logger.debug(`publishSceneEvent(${trigger}) failed: ${err.message}`);
@@ -624,7 +626,13 @@ export class PlexMonitor {
     }
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
-      this.refreshSessions().catch((err) => logger.warn(`Session refresh failed: ${err.message}`));
+      // A player that starts streaming usually shows up here first (its
+      // `playing` notification beats the periodic poll): offer it in the
+      // Discovery tab right away. The periodic poll (src/loops.js) reports a
+      // lasting failure, once.
+      this.refreshSessions()
+        .finally(() => this.publishPendingDiscovery())
+        .catch((err) => logger.debug(`Early session refresh failed: ${err.message}`));
     }, delayMs);
   }
 
@@ -650,8 +658,30 @@ export class PlexMonitor {
       name: session.playerName,
       product: session.playerProduct,
     });
+    // Offered in the Discovery tab by publishPendingDiscovery(), even if the
+    // rest of this refresh fails.
+    this.discoveryPending = true;
     logger.info(`New Plex player discovered: ${session.playerName}`);
     return true;
+  }
+
+  /**
+   * Offer the players seen since the last successful publication in the
+   * Discovery tab. Kept pending (and retried by the next refresh) when the
+   * publication fails.
+   * @returns {Promise<void>}
+   */
+  async publishPendingDiscovery() {
+    if (!this.discoveryPending) {
+      return;
+    }
+    this.discoveryPending = false;
+    try {
+      await this.gladys.publishDiscoveredDevices(this.buildDevices());
+    } catch (err) {
+      this.discoveryPending = true;
+      throw err;
+    }
   }
 
   /**

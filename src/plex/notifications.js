@@ -11,28 +11,44 @@
 // The socket is a nice-to-have: if it cannot connect (old server, proxy...),
 // the periodic session poll still keeps everything up to date. Reconnection
 // uses a simple capped exponential backoff.
+//
+// Logs stay quiet when the socket flaps: one info line when it first connects,
+// one when it closes, then nothing (debug only) until it has stayed open for a
+// minute again. The token travels in the URL query: it is masked in every
+// message that could quote the URL.
 // -----------------------------------------------------------------------------
 
 import WebSocket from 'ws';
 import { createLogger } from '@gladysassistant/integration-sdk';
+import { redactSecret } from '../redact.js';
 
 const logger = createLogger({ name: 'plex-notifications' });
 
-const INITIAL_RECONNECT_DELAY_MS = 5_000;
-const MAX_RECONNECT_DELAY_MS = 60_000;
+export const INITIAL_RECONNECT_DELAY_MS = 5_000;
+export const MAX_RECONNECT_DELAY_MS = 60_000;
+// A connection is considered back (info log, backoff reset) once it has stayed
+// open this long: a socket that opens and closes right away is still "lost".
+export const STABLE_CONNECTION_MS = 60_000;
 
 export class PlexNotifications {
   /**
    * @param {{ plex_url: string, plex_token: string }} config
    * @param {{ onPlaying: () => void }} handlers - `onPlaying` is debounced by
    *   the caller; it is invoked for every playback-related event.
+   * @param {{ WebSocketImpl?: typeof WebSocket }} [options] - Socket class
+   *   (the tests pass an in-memory one).
    */
-  constructor(config, { onPlaying }) {
+  constructor(config, { onPlaying }, { WebSocketImpl = WebSocket } = {}) {
+    this.WebSocketImpl = WebSocketImpl;
     this.url =
       config.plex_url.replace(/^http/, 'ws') +
       '/:/websockets/notifications?X-Plex-Token=' +
       encodeURIComponent(config.plex_token);
+    this.token = config.plex_token;
     this.onPlaying = onPlaying;
+    this.everConnected = false;
+    this.lost = false;
+    this.stableTimer = null;
     this.ws = null;
     this.stopped = false;
     this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
@@ -49,20 +65,32 @@ export class PlexNotifications {
       return;
     }
     try {
-      this.ws = new WebSocket(this.url, {
+      this.ws = new this.WebSocketImpl(this.url, {
         // Self-signed certificates are handled globally (see PlexApi); the
         // ws client follows the same process-wide TLS settings.
         handshakeTimeout: 10_000,
       });
     } catch (err) {
-      logger.warn(`Notification socket creation failed: ${err.message}`);
+      logger.debug(`Notification socket creation failed: ${this.redact(err.message)}`);
       this.scheduleReconnect();
       return;
     }
 
     this.ws.on('open', () => {
-      logger.info('Connected to the Plex notification socket');
-      this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+      if (!this.everConnected) {
+        this.everConnected = true;
+        logger.info('Connected to the Plex notification socket');
+      } else {
+        logger.debug('Plex notification socket reopened');
+      }
+      this.stableTimer = setTimeout(() => {
+        this.stableTimer = null;
+        this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+        if (this.lost) {
+          this.lost = false;
+          logger.info('Plex notification socket back');
+        }
+      }, STABLE_CONNECTION_MS);
     });
 
     this.ws.on('message', (raw) => {
@@ -77,15 +105,27 @@ export class PlexNotifications {
     });
 
     this.ws.on('error', (err) => {
-      logger.debug(`Notification socket error: ${err.message}`);
+      logger.debug(`Notification socket error: ${this.redact(err.message)}`);
     });
 
     this.ws.on('close', () => {
       this.ws = null;
-      if (!this.stopped) {
-        logger.info('Plex notification socket closed, falling back to polling until reconnect');
-        this.scheduleReconnect();
+      this.clearStableTimer();
+      if (this.stopped) {
+        return;
       }
+      if (!this.everConnected) {
+        // Never opened yet (old server, proxy...): nothing was lost.
+        logger.debug(`Plex notification socket unavailable, retry in ${this.reconnectDelay} ms`);
+      } else if (!this.lost) {
+        this.lost = true;
+        logger.info(
+          'Plex notification socket closed, the session poll keeps running until it is back',
+        );
+      } else {
+        logger.debug(`Plex notification socket closed again, retry in ${this.reconnectDelay} ms`);
+      }
+      this.scheduleReconnect();
     });
   }
 
@@ -100,8 +140,21 @@ export class PlexNotifications {
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
   }
 
+  clearStableTimer() {
+    if (this.stableTimer) {
+      clearTimeout(this.stableTimer);
+      this.stableTimer = null;
+    }
+  }
+
+  /** Mask the Plex token in a message that may quote the socket URL. */
+  redact(message) {
+    return redactSecret(message, this.token);
+  }
+
   stop() {
     this.stopped = true;
+    this.clearStableTimer();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

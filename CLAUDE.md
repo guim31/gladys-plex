@@ -2,7 +2,7 @@
 
 Contrôlez vos lecteurs Plex : lecture, en cours, activité et bibliothèques.
 
-Intégration externe pour [Gladys Assistant](https://gladysassistant.com), bâtie sur le template officiel `GladysAssistant/integration-template-js` (SDK `@gladysassistant/integration-sdk` ^0.14.0, `gladys_version` `>=5.1.0`). Mainteneur : Guilhem (`guim31`).
+Intégration externe pour [Gladys Assistant](https://gladysassistant.com), bâtie sur le template officiel `GladysAssistant/integration-template-js` (SDK `@gladysassistant/integration-sdk` ^0.15.0, `gladys_version` `>=5.1.0`). Mainteneur : Guilhem (`guim31`).
 
 Ce fichier rassemble ce qu'une session de code doit savoir et qui ne se lit pas dans le code : choix de conception, faits vérifiés en réel, pièges déjà payés. Le compléter quand un nouveau piège est découvert.
 
@@ -24,6 +24,29 @@ de l'une se reporte souvent dans l'autre.
 - Pas d'action de scène : Plex n'a pas d'API de message, et `playMedia` exige une playQueue, non
   testable sans vrai lecteur.
 - `gladys_version >=5.1.0` depuis la 1.1.0.
+- **Polling** : aucun appareil ne demande à être sondé (ni `should_poll` ni
+  `poll_frequency` publiés). Toutes les valeurs viennent des minuteurs de `src/loops.js` (sessions toutes
+  les `session_poll_frequency` s, bibliothèques toutes les `poll_frequency` s, socket de
+  notifications en accélérateur), jamais d'`onPoll` du cœur, qu'un cœur 5.2.0 n'envoie pas à un
+  appareil créé sans `should_poll` (Gladys #3198). `onPoll` n'est qu'un repli qui avance le
+  rafraîchissement. `test/loops.test.js` le vérifie avec le faux Gladys du SDK
+  (`@gladysassistant/integration-sdk/testing`) et des minuteurs simulés.
+- Un démarrage raté (Plex injoignable quand l'intégration démarre) est retenté par un minuteur
+  propre à `index.js` (30 s puis jusqu'à 5 min, une erreur au premier échec, une info au
+  retour) : rien d'autre ne relancerait `initialize()` avant une sauvegarde de la configuration.
+- Un nouveau lecteur est marqué `discoveryPending` dans `PlexMonitor` et publié dans la
+  Découverte par `publishPendingDiscovery()` (rafraîchissement anticipé ou boucle), retenté au
+  cycle suivant si Gladys refuse : un échec côté Gladys ne compte pas comme une panne Plex.
+- **Logs** : info = cycle de vie (démarrage, connexion au serveur, nouveau lecteur, une ligne
+  par commande). Événements de scène, rafraîchissements et reconnexions du socket en debug.
+  Échecs répétés dédupliqués par `FailureLog` (`src/failure-log.js`) : un warn au premier, un
+  info au retour. Le socket n'est « revenu » qu'après 60 s ouvert (sinon il clignote dans les
+  logs) ; le jeton passe dans l'URL du socket et est masqué dans ses messages. Un test vérifie
+  qu'un cycle normal n'écrit rien en info : le garder vert. Les messages d'erreur passent par
+  `redactSecret` (`src/redact.js`) avant d'être journalisés.
+- Les tests de `PlexMonitor` gardent leur faux Gladys maison (`test/helpers/fakeGladys.js`,
+  simple et suffisant) ; les nouveaux tests passent par celui du SDK, qui valide les charges
+  comme l'API hôte.
 - Pour un banc d'essai sans toucher à un vrai serveur : un Plex non réclamé dont
   `ALLOWED_NETWORKS` couvre le client ne demande aucun jeton, et un simple
   `/:/timeline?state=…` avec des en-têtes `X-Plex-Client-Identifier` crée une vraie session dans
