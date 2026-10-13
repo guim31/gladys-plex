@@ -16,7 +16,7 @@
 import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig, isConfigured } from './src/config.js';
 import { PlexMonitor } from './src/monitor.js';
-import { PlexNotifications } from './src/plex/notifications.js';
+import { RefreshLoops } from './src/loops.js';
 import { WIDGET } from './src/widgets.js';
 import { MESSAGES } from './src/messages.js';
 
@@ -28,17 +28,17 @@ let config = normalizeConfig();
 /** @type {PlexMonitor|null} Present once the Plex server has been reached. */
 let monitor = null;
 
-/** @type {PlexNotifications|null} Real-time notification socket. */
-let notifications = null;
-
-/** @type {ReturnType<typeof setInterval>|null} Fallback session poll. */
-let sessionInterval = null;
-
-/** @type {ReturnType<typeof setInterval>|null} Library statistics poll. */
-let libraryInterval = null;
+/** @type {RefreshLoops|null} Session poll, library poll and notification socket. */
+let loops = null;
 
 /** Increments on every initialize(): only the newest run may publish. */
 let initGeneration = 0;
+
+/** Retry of a failed start (Plex unreachable when the integration starts). */
+let initRetryTimer = null;
+let initFailures = 0;
+const INIT_RETRY_FIRST_MS = 30_000;
+const INIT_RETRY_MAX_MS = 5 * 60_000;
 
 const NOT_CONFIGURED_MESSAGE = MESSAGES.notConfigured;
 
@@ -55,7 +55,8 @@ gladys.onScanRequest(async () => {
 
 // --- Command: the user acts on a controllable feature ------------------------
 gladys.onSetValue(async (device, feature, value) => {
-  logger.info(`onSetValue <- ${feature.external_id} = ${value}`);
+  // The monitor logs one info line per command (route used, or failure).
+  logger.debug(`onSetValue <- ${feature.external_id} = ${value}`);
   if (!monitor) {
     throw new Error('Plex server not connected');
   }
@@ -80,9 +81,14 @@ gladys.onDeviceCreated(async (device) => {
 });
 
 // --- Polling ------------------------------------------------------------------
-// No device declares a Gladys poll_frequency (the core only accepts fast 1 s -
-// 1 min polling): both refresh loops are owned by the integration (see
-// startLoops), so onPoll is intentionally not registered.
+// No device declares should_poll / poll_frequency: every value comes from the
+// integration's own timers (src/loops.js), never from the core's onPoll, which
+// Gladys 5.2.0 never sends to a device created without should_poll
+// (GladysAssistant/Gladys#3198). The handler below is only a fallback: should
+// the core ever poll a Plex device, it asks for an early session refresh.
+gladys.onPoll(async () => {
+  monitor?.scheduleSessionRefresh();
+});
 
 // --- Manifest actions: buttons in the Configuration screen -------------------
 gladys.onAction('test_connection', async () => {
@@ -140,6 +146,7 @@ gladys.onWidgetGetImage(async (imageKey) => {
 gladys.onConfigUpdated(async (newConfig) => {
   logger.info('onConfigUpdated -> new configuration received');
   config = normalizeConfig(newConfig);
+  initFailures = 0; // A new configuration gets its own first error line.
   // The server address or token may have changed: rebuild everything.
   await initialize();
 });
@@ -151,6 +158,9 @@ gladys.on('connected', async () => {
 });
 
 gladys.on('disconnected', () => {
+  // Also drops an initialize() still in flight: the next `connected` starts over.
+  initGeneration += 1;
+  clearInitRetry();
   stopLoops();
 });
 
@@ -166,6 +176,7 @@ async function initialize() {
   const generation = ++initGeneration;
   const isStale = () => generation !== initGeneration;
 
+  clearInitRetry();
   stopLoops();
   monitor?.stop();
   monitor = null;
@@ -189,8 +200,11 @@ async function initialize() {
     // Publish the devices (idempotent upsert by external_id).
     await gladys.publishDiscoveredDevices(monitor.buildDevices());
 
-    // First data points, then the periodic loops.
-    await monitor.refreshSessions();
+    // First data points, then the periodic loops (which report a lasting
+    // failure themselves).
+    await monitor.refreshSessions().catch((err) => {
+      logger.debug(`Initial session refresh failed: ${err.message}`);
+    });
     await monitor.refreshLibraries().catch((err) => {
       logger.warn(`Initial library refresh failed: ${err.message}`);
     });
@@ -198,86 +212,58 @@ async function initialize() {
       return;
     }
     startLoops();
+    if (initFailures > 0) {
+      logger.info(`Plex server reached after ${initFailures} failed attempt(s)`);
+      initFailures = 0;
+    }
 
     await gladys.setConnectionStatus(true);
   } catch (err) {
     if (isStale()) {
       return;
     }
-    logger.error(`Plex initialization failed: ${err.message}`);
+    // Plex may simply start after Gladys: retry on our own timer (no core
+    // polling to count on), logging the first failure only.
+    initFailures += 1;
+    const delayMs = Math.min(INIT_RETRY_FIRST_MS * 2 ** (initFailures - 1), INIT_RETRY_MAX_MS);
+    if (initFailures === 1) {
+      logger.error(`Plex initialization failed, retrying in the background: ${err.message}`);
+    } else {
+      logger.debug(`Plex initialization failed (${initFailures} in a row): ${err.message}`);
+    }
+    initRetryTimer = setTimeout(() => {
+      initRetryTimer = null;
+      if (!isStale()) {
+        initialize();
+      }
+    }, delayMs);
     await gladys
       .setConnectionStatus(false, MESSAGES.unreachable({ error: err.message }))
       .catch(() => {});
   }
 }
 
-/**
- * Start the session poll and the real-time notification socket. The socket
- * only accelerates the poll: every playback event triggers an immediate
- * (debounced) session refresh.
- */
+function clearInitRetry() {
+  if (initRetryTimer) {
+    clearTimeout(initRetryTimer);
+    initRetryTimer = null;
+  }
+}
+
 function startLoops() {
-  sessionInterval = setInterval(() => {
-    refreshSessionsSafely();
-  }, config.session_poll_frequency * 1_000);
-
-  libraryInterval = setInterval(() => {
-    monitor?.refreshLibraries().catch((err) => {
-      logger.warn(`Library refresh failed: ${err.message}`);
-    });
-  }, config.poll_frequency * 1_000);
-
-  notifications = new PlexNotifications(config, {
-    onPlaying: () => monitor?.scheduleSessionRefresh(),
-  });
-  notifications.start();
+  loops = new RefreshLoops(gladys, config, monitor);
+  loops.start();
 }
 
 function stopLoops() {
-  if (sessionInterval) {
-    clearInterval(sessionInterval);
-    sessionInterval = null;
-  }
-  if (libraryInterval) {
-    clearInterval(libraryInterval);
-    libraryInterval = null;
-  }
-  if (notifications) {
-    notifications.stop();
-    notifications = null;
-  }
-}
-
-let consecutiveFailures = 0;
-
-async function refreshSessionsSafely() {
-  if (!monitor) {
-    return;
-  }
-  try {
-    const newPlayers = await monitor.refreshSessions();
-    if (newPlayers) {
-      // A never-seen player started streaming: offer it in the Discovery tab.
-      await gladys.publishDiscoveredDevices(monitor.buildDevices());
-    }
-    if (consecutiveFailures >= 3) {
-      await gladys.setConnectionStatus(true).catch(() => {});
-    }
-    consecutiveFailures = 0;
-  } catch (err) {
-    consecutiveFailures += 1;
-    logger.warn(`Session refresh failed (${consecutiveFailures}): ${err.message}`);
-    if (consecutiveFailures === 3) {
-      await gladys
-        .setConnectionStatus(false, MESSAGES.contactLost({ error: err.message }))
-        .catch(() => {});
-    }
-  }
+  loops?.stop();
+  loops = null;
 }
 
 // --- Graceful shutdown -------------------------------------------------------
 gladys.handleShutdown((signal) => {
   logger.info(`Received ${signal} -> graceful shutdown`);
+  clearInitRetry();
   stopLoops();
   monitor?.stop();
 });

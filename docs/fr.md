@@ -133,9 +133,11 @@ il coupe la lecture côté serveur, ce qui marche avec n'importe quel lecteur.
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Consultez les logs de l'intégration depuis l'interface Gladys (ou
+`docker logs` sur l'hôte). Ils restent courts : démarrage, connexion au
+serveur, lecteurs trouvés, commandes, et une ligne quand le serveur ne répond
+plus, et non une par tentative (puis une à son retour). `LOG_LEVEL=debug`
+ajoute le détail de chaque rafraîchissement.
 
 - **« Plex authentication failed »** — le jeton est invalide ou expiré.
   Récupérez un X-Plex-Token à jour et mettez la configuration à jour.

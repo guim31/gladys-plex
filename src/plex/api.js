@@ -86,7 +86,10 @@ export class PlexApi {
         signal: AbortSignal.timeout(options.timeoutMs ?? REQUEST_TIMEOUT_MS),
       });
     } catch (err) {
-      throw new Error(`Plex server unreachable at ${origin}: ${err.message}`, { cause: err });
+      // URL.origin drops any user:password@ part: never log credentials.
+      throw new Error(`Plex server unreachable at ${new URL(origin).origin}: ${err.message}`, {
+        cause: err,
+      });
     }
     if (response.status === 401) {
       throw new Error('Plex authentication failed: check the X-Plex-Token.');

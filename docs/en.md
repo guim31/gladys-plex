@@ -124,9 +124,11 @@ player.
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+Check the integration logs from the Gladys UI (or `docker logs` on the host).
+They stay short: start-up, connection to the server, players found, commands,
+and a single warning when the server stops answering, not one per attempt
+(then one line when it is back).
+`LOG_LEVEL=debug` adds the detail of every refresh.
 
 - **"Plex authentication failed"** — the token is wrong or expired. Fetch a
   fresh X-Plex-Token and update the configuration.
