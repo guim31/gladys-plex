@@ -7,6 +7,12 @@ described in the [GitHub Releases](https://github.com/guim31/gladys-plex/release
 
 ## [Unreleased]
 
+### Security
+
+- Rebuilt on Node.js 24.22.1, the October 2026 security release (remote code
+  execution in the Brotli decoder, CVE-2026-111497; TLS hostname and DNS
+  fixes).
+
 ### Changed
 
 - Quieter logs: the info level now only keeps the lifecycle (start-up,
