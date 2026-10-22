@@ -8,8 +8,8 @@
     "de": "Steuere deine Plex-Player: Wiedergabe, aktuelle Medien, Aktivität und Bibliotheken.",
     "es": "Controle sus reproductores Plex: reproducción, en curso, actividad y bibliotecas."
   },
-  "version": "1.2.1",
-  "docker_image": "ghcr.io/guim31/gladys-plex:1.2.1",
+  "version": "1.2.2",
+  "docker_image": "ghcr.io/guim31/gladys-plex:1.2.2",
   "gladys_version": ">=5.1.0",
   "cover_image": "https://raw.githubusercontent.com/guim31/gladys-plex/main/cover.png",
   "categories": ["multimedia"],
