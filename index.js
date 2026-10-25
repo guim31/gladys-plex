@@ -83,6 +83,8 @@ const republish = (event) => async (device) => {
   }
   monitor.resetPublicationCache(device.external_id);
   monitor.scheduleSessionRefresh();
+  // A player the server does not list gets its (new) features idle.
+  await monitor.publishAbsentPlayersIdle();
   await monitor.refreshLibraries().catch((err) => {
     logger.warn(`Library refresh after ${event} failed: ${err.message}`);
   });

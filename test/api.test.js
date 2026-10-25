@@ -160,6 +160,7 @@ test('music library calls: pages, play queues, search, transient token', async (
   ]);
   assert.equal(await api.getMetadata('404'), null);
   assert.equal(await api.getTransientToken(), null, 'an unclaimed server has none');
+  assert.equal(calls.at(-1).options.headers['X-Plex-Token'], 'secret-token');
 
   await api.createPlayQueue({
     uri: 'server://srv/com.plexapp.plugins.library/library/metadata/14',
@@ -181,6 +182,25 @@ test('music library calls: pages, play queues, search, transient token', async (
 
   await api.getImage('/library/metadata/9/thumb/1', 400, 400, 'jpeg');
   assert.equal(calls.at(-1).url.searchParams.get('format'), 'jpeg');
+  assert.equal(calls.at(-1).options.headers['X-Plex-Token'], 'secret-token', 'token as a header');
+  assert.equal(calls.at(-1).url.searchParams.get('X-Plex-Token'), null, 'never in the URL');
+});
+
+test('the transient token: only a server without one falls back, other failures throw', async () => {
+  mockFetch(() => new Response('', { status: 500 }));
+  const api = new PlexApi(CONFIG);
+  await assert.rejects(api.getTransientToken(), /HTTP 500/);
+  mockFetch(() => new Response('', { status: 403 }));
+  assert.equal(await api.getTransientToken(), null, 'unclaimed server, seen from a container');
+  mockFetch(() => jsonResponse({ MediaContainer: { token: 'transient-abc' } }));
+  assert.equal(await api.getTransientToken(), 'transient-abc');
+});
+
+test('a listing without totalSize announces one more row when the page is full', async () => {
+  mockFetch(() => jsonResponse({ MediaContainer: { size: 2, Metadata: [{}, {}] } }));
+  const api = new PlexApi(CONFIG);
+  assert.equal((await api.page('/playlists', {}, { offset: 4, limit: 2 })).total, 7);
+  assert.equal((await api.page('/playlists', {}, { offset: 4, limit: 5 })).total, 6);
 });
 
 test('a 401 answer surfaces a clear authentication error', async () => {

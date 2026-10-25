@@ -61,7 +61,10 @@ and mute.
   refuses them shows an error in the panel.
 - **The queue** is the one the server keeps for the player. Its id comes with
   the real-time notifications: after a restart of the integration, it shows up
-  within a few seconds of playback.
+  within a few seconds of playback. Until then, "next" and "at the end" ask to try again rather
+  than replacing what plays.
+- The player reaches your server at the **address of the configuration**:
+  enter the local address (IP) of the server, not `localhost`.
 - **No shuffle nor repeat**: the server does not report them (only the player
   itself knows), so these two buttons do not show.
 - Volume and mute are not reported by the server either: the box shows the

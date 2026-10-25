@@ -72,8 +72,9 @@ de l'une se reporte souvent dans l'autre.
   `notePlayQueues()`. Le serveur suit l'élément que le lecteur rapporte
   (`playQueueSelectedItemOffset`) et pagine `/playQueues/<id>` avec `X-Plex-Container-Start/Size`.
 - **Commandes companion** (dépendent de l'appli) : `playMedia` (playQueue créée par
-  `POST /playQueues`, paramètres de python-plexapi, jeton `/security/token?type=delegation`, 400
-  sur un serveur non réclamé → jeton configuré), `refreshPlayQueue` après `PUT /playQueues/<id>`
+  `POST /playQueues`, paramètres de python-plexapi, jeton `/security/token?type=delegation` ; un serveur non réclamé répond 400 (vu de l'hôte) ou 403
+  (vu d'un conteneur) → jeton configuré, toute autre erreur fait échouer : le jeton
+  administrateur ne part jamais par défaut), `refreshPlayQueue` après `PUT /playQueues/<id>`
   (suite / fin de file), `skipTo` (clé + `playQueueItemID`), `seekTo` (ms). Un lecteur répond en
   **XML** (`<Response code="200"/>`) : `playerCommand` ne lit pas le corps (bug corrigé en 1.3.0,
   la route directe signalait un échec après avoir exécuté la commande).

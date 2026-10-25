@@ -65,7 +65,10 @@ se déplacer, lecture / pause, précédent / suivant, le volume et la sourdine.
 - **La file d'attente** est celle que le serveur tient pour le lecteur. Son
   identifiant arrive avec les notifications temps réel : après un redémarrage
   de l'intégration, elle apparaît quelques secondes après le début de la
-  lecture.
+  lecture. D'ici là, « à la suite » et « en fin de file » demandent de réessayer
+  plutôt que de remplacer ce qui joue.
+- Le lecteur rejoint votre serveur à l'**adresse de la configuration** :
+  indiquez l'adresse locale (IP) du serveur, pas `localhost`.
 - **Ni aléatoire ni répétition** : le serveur ne les publie pas (seul le
   lecteur les connaît), ces deux boutons n'apparaissent donc pas.
 - Le volume et la sourdine ne sont pas publiés par le serveur non plus : la

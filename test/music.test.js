@@ -510,11 +510,20 @@ test('play next / at the end: the current server queue, then refreshPlayQueue', 
   const { fake, monitor, api, tv, phone } = await start();
   t.after(() => monitor.stop());
   await monitor.refreshSessions();
-  monitor.notePlayQueues([
-    { clientIdentifier: 'client-tv', playQueueID: 4, playQueueItemID: 101, state: 'playing' },
-  ]);
 
-  assert.equal((await fake.musicPlay(tv, { id: 'track:17', type: 'track' }, 'next')).success, true);
+  // The phone plays music, its queue not known yet: never replaced.
+  const before = api.commands.length;
+  const unknown = await fake.musicPlay(phone, { id: 'track:17', type: 'track' }, 'next');
+  assert.match(unknown.error, /La file d'attente de Pixel 9 n'est pas encore connue/);
+  assert.equal(api.commands.length, before, 'nothing sent to the player');
+
+  monitor.notePlayQueues([
+    { clientIdentifier: 'client-phone', playQueueID: 4, playQueueItemID: 101, state: 'paused' },
+  ]);
+  assert.equal(
+    (await fake.musicPlay(phone, { id: 'track:17', type: 'track' }, 'next')).success,
+    true,
+  );
   assert.deepEqual(api.calls.at(-1), {
     path: 'PUT /playQueues',
     id: '4',
@@ -524,13 +533,54 @@ test('play next / at the end: the current server queue, then refreshPlayQueue', 
   assert.deepEqual(api.commands.at(-1).path, '/player/playback/refreshPlayQueue');
   assert.deepEqual(api.commands.at(-1).params, { playQueueID: '4', type: 'music' });
 
-  await fake.musicPlay(tv, { id: 'playlist:21', type: 'playlist' }, 'append');
+  await fake.musicPlay(phone, { id: 'playlist:21', type: 'playlist' }, 'append');
   assert.deepEqual(api.calls.at(-1).source, { playlistID: '21' });
   assert.equal(api.calls.at(-1).next, false);
 
-  // No queue known for the phone: the media is played.
-  await fake.musicPlay(phone, { id: 'album:14', type: 'album' }, 'append');
+  // The TV plays an episode: no music queue to add to.
+  const video = await fake.musicPlay(tv, { id: 'album:14', type: 'album' }, 'append');
+  assert.match(video.error, /TV Salon ne lit pas de musique/);
+
+  // Nothing loaded: the media is simply played.
+  monitor.activeSessions.delete('client-tv');
+  assert.equal(
+    (await fake.musicPlay(tv, { id: 'album:14', type: 'album' }, 'append')).success,
+    true,
+  );
   assert.equal(api.commands.at(-1).path, '/player/playback/playMedia');
+});
+
+test('volume and mute accepted by the player stay a success when Gladys refuses the state', async (t) => {
+  const { gladys, monitor, api, tv } = await start();
+  t.after(() => monitor.stop());
+  gladys.publishNowPlaying = async () => {
+    throw new Error('HTTP 429');
+  };
+  await monitor.handleSetValue(tv, { external_id: `${tv.external_id}:volume` }, 40);
+  await monitor.handleSetValue(tv, { external_id: `${tv.external_id}:mute`, category: 'music' }, 1);
+  assert.deepEqual(
+    api.commands.map((c) => c.params),
+    [
+      { type: 'video', volume: 40 },
+      { type: 'video', mute: 1 },
+    ],
+  );
+});
+
+test('a refused now-playing batch is published again with its position', async (t) => {
+  const { gladys, monitor, tv } = await start();
+  t.after(() => monitor.stop());
+  const calls = [];
+  let refuse = true;
+  gladys.publishNowPlaying = async (id, values) => {
+    if (id !== tv.external_id) return;
+    calls.push(values);
+    if (refuse) throw new Error('HTTP 429');
+  };
+  await monitor.refreshSessions();
+  refuse = false;
+  await monitor.refreshSessions();
+  assert.equal(calls[1].position, 65, 'the sample was never published: it goes again');
 });
 
 test('queue: a page of the server queue, current index, jump with skipTo', async (t) => {

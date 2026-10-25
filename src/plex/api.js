@@ -33,6 +33,11 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // two routes (through the server, then straight to the player).
 const COMMAND_TIMEOUT_MS = 2_000;
 
+// Music panel (Gladys 5.3): Gladys waits 10 s for a music command, 15 s for
+// an artwork. A listing is one request; playing chains up to three short
+// ones (item, play queue, token) and the player command.
+export const MUSIC_TIMEOUT_MS = { list: 5_000, step: 2_000, image: 4_000 };
+
 // Port a Plex client advertising itself as a player listens on.
 export const PLEX_CLIENT_PORT = 32500;
 
@@ -237,7 +242,7 @@ export class PlexApi {
    * @param {number} height
    * @returns {Promise<Buffer>} JPEG bytes.
    */
-  async getImage(imagePath, width, height, format) {
+  async getImage(imagePath, width, height, format, timeoutMs) {
     // Without `format`, the transcoder keeps the format of the source: a PNG
     // cover comes back as a heavy PNG (186 KB at 400 px for a noisy one,
     // checked on PMS 1.43, labelled image/jpeg). `format=jpeg` gives ~30 KB.
@@ -245,7 +250,7 @@ export class PlexApi {
       '/photo/:/transcode',
       { url: imagePath, width, height, minSize: 1, upscale: 0, ...(format ? { format } : {}) },
       {},
-      { binary: true },
+      { binary: true, ...(timeoutMs ? { timeoutMs } : {}) },
     );
   }
 
@@ -259,15 +264,21 @@ export class PlexApi {
    * @returns {Promise<{ items: Array<object>, total: number }>}
    */
   async page(path, params = {}, { offset = 0, limit = 50 } = {}) {
-    const data = await this.request(path, {
-      ...params,
-      'X-Plex-Container-Start': offset,
-      'X-Plex-Container-Size': limit,
-    });
+    const data = await this.request(
+      path,
+      { ...params, 'X-Plex-Container-Start': offset, 'X-Plex-Container-Size': limit },
+      {},
+      { timeoutMs: MUSIC_TIMEOUT_MS.list },
+    );
     const container = data?.MediaContainer ?? {};
     const items = container.Metadata ?? container.Directory ?? [];
-    const total = Number(container.totalSize ?? container.size ?? items.length);
-    return { items, total: Number.isFinite(total) ? total : items.length };
+    const total = Number(container.totalSize);
+    if (Number.isInteger(total) && total >= 0) {
+      return { items, total };
+    }
+    // No full size (`size` is the page's): a full page announces one more
+    // row, so the panel asks for the next page.
+    return { items, total: offset + items.length + (items.length >= limit ? 1 : 0) };
   }
 
   /**
@@ -277,7 +288,12 @@ export class PlexApi {
    */
   async getMetadata(ratingKey) {
     try {
-      const data = await this.request(`/library/metadata/${encodeURIComponent(ratingKey)}`);
+      const data = await this.request(
+        `/library/metadata/${encodeURIComponent(ratingKey)}`,
+        {},
+        {},
+        { timeoutMs: MUSIC_TIMEOUT_MS.step },
+      );
       return data?.MediaContainer?.Metadata?.[0] ?? null;
     } catch (err) {
       if (/HTTP 404/.test(err.message)) {
@@ -295,7 +311,12 @@ export class PlexApi {
    * @returns {Promise<Array<{ type: string, items: Array<object> }>>}
    */
   async searchHubs(query, limit) {
-    const data = await this.request('/hubs/search', { query, limit });
+    const data = await this.request(
+      '/hubs/search',
+      { query, limit },
+      {},
+      { timeoutMs: MUSIC_TIMEOUT_MS.list },
+    );
     return (data?.MediaContainer?.Hub ?? []).map((hub) => ({
       type: hub.type,
       items: hub.Metadata ?? [],
@@ -320,7 +341,7 @@ export class PlexApi {
         own: 1,
       },
       {},
-      { method: 'POST' },
+      { method: 'POST', timeoutMs: MUSIC_TIMEOUT_MS.step },
     );
     return data?.MediaContainer ?? {};
   }
@@ -337,7 +358,7 @@ export class PlexApi {
       `/playQueues/${encodeURIComponent(playQueueId)}`,
       { ...(uri ? { uri } : {}), ...(playlistID ? { playlistID } : {}), next: next ? 1 : 0 },
       {},
-      { method: 'PUT' },
+      { method: 'PUT', timeoutMs: MUSIC_TIMEOUT_MS.step },
     );
     return data?.MediaContainer ?? {};
   }
@@ -351,11 +372,12 @@ export class PlexApi {
    * @returns {Promise<{ items: Array<object>, total: number, currentIndex: number|null }>}
    */
   async getPlayQueue(playQueueId, { offset, limit }) {
-    const data = await this.request(`/playQueues/${encodeURIComponent(playQueueId)}`, {
-      own: 0,
-      'X-Plex-Container-Start': offset,
-      'X-Plex-Container-Size': limit,
-    });
+    const data = await this.request(
+      `/playQueues/${encodeURIComponent(playQueueId)}`,
+      { own: 0, 'X-Plex-Container-Start': offset, 'X-Plex-Container-Size': limit },
+      {},
+      { timeoutMs: MUSIC_TIMEOUT_MS.list },
+    );
     const container = data?.MediaContainer ?? {};
     const items = container.Metadata ?? [];
     const total = Number(container.playQueueTotalCount);
@@ -369,16 +391,26 @@ export class PlexApi {
 
   /**
    * A short-lived token a player can use to stream from the server (what the
-   * official controllers hand over in `playMedia`). Null when the server has
-   * none to give (an unclaimed server answers 400).
+   * official controllers hand over in `playMedia`). Null only when the
+   * server has none to give (an unclaimed server answers 400 or 403, checked
+   * on PMS 1.43): a timeout or a server error throws, so the configured token
+   * is never handed over by default.
    * @returns {Promise<string|null>}
    */
   async getTransientToken() {
     try {
-      const data = await this.request('/security/token', { type: 'delegation', scope: 'all' });
+      const data = await this.request(
+        '/security/token',
+        { type: 'delegation', scope: 'all' },
+        {},
+        { timeoutMs: MUSIC_TIMEOUT_MS.step },
+      );
       return data?.MediaContainer?.token ?? null;
-    } catch {
-      return null;
+    } catch (err) {
+      if (/HTTP (400|403|404)\b/.test(err.message)) {
+        return null;
+      }
+      throw err;
     }
   }
 

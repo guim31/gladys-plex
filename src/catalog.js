@@ -28,6 +28,7 @@
 
 import { artworkKey, MUSIC_MEDIA_TYPES } from '@gladysassistant/integration-sdk';
 import { localized, localizedError } from './messages.js';
+import { MUSIC_TIMEOUT_MS } from './plex/api.js';
 
 /** Our folders. Plex ratingKeys are numbers: no clash with `gladys:`. */
 export const FOLDER = {
@@ -130,7 +131,13 @@ export class MusicCatalog {
     }
     let size = artwork.size;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const bytes = await this.api.getImage(artwork.path, size, size, 'jpeg');
+      const bytes = await this.api.getImage(
+        artwork.path,
+        size,
+        size,
+        'jpeg',
+        MUSIC_TIMEOUT_MS.image,
+      );
       if (bytes.length <= MAX_ARTWORK_BYTES) {
         return bytes.toString('base64');
       }
@@ -331,8 +338,9 @@ export class MusicCatalog {
   /**
    * onMusicPlay (and the `music.play-media` scene action): play a track, an
    * album, an artist or a playlist on the player — now, next, or at the end
-   * of its queue. Next / at the end need the player's current play queue
-   * (known from the notification socket): without one, the media is played.
+   * of its queue. Next / at the end add to the player's current play queue
+   * (known from the notification socket); a player with nothing loaded just
+   * plays the media.
    * @param {{ external_id: string }} device
    * @param {{ id: string, type?: string }} media
    * @param {'replace'|'next'|'append'} mode
@@ -349,8 +357,16 @@ export class MusicCatalog {
     await this.itemOf(parsed);
     const source = this.sourceOf(parsed);
 
-    const queue = mode === 'replace' ? null : this.monitor.playQueueOf(player.machineIdentifier);
-    if (queue) {
+    const session = this.monitor.activeSessions.get(player.machineIdentifier);
+    if (mode !== 'replace' && session) {
+      // Never replace what plays when asked to enqueue.
+      if (session.mediaType !== 'track') {
+        throw localizedError('notMusicQueue', this.language, { player: player.name });
+      }
+      const queue = this.monitor.playQueueOf(player.machineIdentifier);
+      if (!queue) {
+        throw localizedError('queueUnknown', this.language, { player: player.name });
+      }
       await this.api.addToPlayQueue(queue.playQueueID, source, mode === 'next');
       await this.monitor.sendPlayerCommand(
         player.machineIdentifier,

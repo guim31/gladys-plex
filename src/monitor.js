@@ -302,13 +302,16 @@ export class PlexMonitor {
       if (session?.state === 'playing' && this.positionSamples.get(machineIdentifier) === sample) {
         delete snapshot.position;
       }
-      this.positionSamples.set(machineIdentifier, sample);
       // One player refused must not stop the others, nor the scene events.
-      await this.gladys
-        .publishNowPlaying(ids.device, snapshot, { featureExternalIds: nowPlayingFeatureIds(ids) })
-        .catch((err) =>
-          logger.debug(`publishNowPlaying(${machineIdentifier}) failed: ${err.message}`),
-        );
+      // The sample is remembered once published (a refused batch goes again).
+      try {
+        await this.gladys.publishNowPlaying(ids.device, snapshot, {
+          featureExternalIds: nowPlayingFeatureIds(ids),
+        });
+        this.positionSamples.set(machineIdentifier, sample);
+      } catch (err) {
+        logger.debug(`publishNowPlaying(${machineIdentifier}) failed: ${err.message}`);
+      }
     }
   }
 
@@ -390,6 +393,19 @@ export class PlexMonitor {
     const name =
       this.players.get(machineIdentifier)?.name ?? session?.playerName ?? machineIdentifier;
     return { machineIdentifier, name };
+  }
+
+  /**
+   * Publish a value the player accepted (volume, mute: the server does not
+   * report them). A refusal of Gladys (rate limit, disconnection) must not
+   * turn a command Plex executed into an error.
+   */
+  async publishAccepted(deviceExternalId, values) {
+    await this.gladys
+      .publishNowPlaying(deviceExternalId, values)
+      .catch((err) =>
+        logger.debug(`publishNowPlaying(${deviceExternalId}) failed: ${err.message}`),
+      );
   }
 
   /** One info line per media started from Gladys. */
@@ -562,10 +578,12 @@ export class PlexMonitor {
    * Poll the item counts of every library and publish them.
    */
   async refreshLibraries() {
+    // Reloaded even without the sensors: the music panel lists the music
+    // libraries.
+    this.libraries = await this.api.getLibraries();
     if (!this.config.library_sensors) {
       return;
     }
-    this.libraries = await this.api.getLibraries();
     const serverIds = serverExternalIds(this.gladys, this.serverInfo.machineIdentifier);
     const states = [];
     for (const library of this.libraries) {
@@ -666,7 +684,7 @@ export class PlexMonitor {
         volume,
       });
       // The server does not report the volume: the player accepted it.
-      await this.gladys.publishNowPlaying(ids.device, { volume });
+      await this.publishAccepted(ids.device, { volume });
     } else if (key === PLAYER_FEATURE.MUTE) {
       // music/mute (1.3): the value is the wanted state. Before "Update" in
       // Discover, the feature is still the television/volume_mute of 1.2, a
@@ -685,7 +703,7 @@ export class PlexMonitor {
       } else {
         this.mutedPlayers.delete(machineIdentifier);
       }
-      await this.gladys.publishNowPlaying(ids.device, { mute: muted ? 1 : 0 });
+      await this.publishAccepted(ids.device, { mute: muted ? 1 : 0 });
     } else {
       throw new Error(`No command handler for ${feature.external_id}`);
     }

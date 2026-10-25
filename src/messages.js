@@ -103,6 +103,20 @@ export const MESSAGES = {
     es: `No se está reproduciendo nada en ${player}.`,
   }),
   /** @param {{ player: string }} p */
+  queueUnknown: ({ player }) => ({
+    en: `The queue of ${player} is not known yet: try again in a few seconds.`,
+    fr: `La file d'attente de ${player} n'est pas encore connue : réessayez dans quelques secondes.`,
+    de: `Die Warteschlange von ${player} ist noch nicht bekannt: versuche es in ein paar Sekunden erneut.`,
+    es: `La cola de ${player} aún no se conoce: vuelva a intentarlo en unos segundos.`,
+  }),
+  /** @param {{ player: string }} p */
+  notMusicQueue: ({ player }) => ({
+    en: `${player} is not playing music: play the item instead of adding it to the queue.`,
+    fr: `${player} ne lit pas de musique : lancez l'élément au lieu de l'ajouter à la file.`,
+    de: `${player} spielt keine Musik: spiele das Element ab, statt es einzureihen.`,
+    es: `${player} no está reproduciendo música: reproduzca el elemento en lugar de añadirlo a la cola.`,
+  }),
+  /** @param {{ player: string }} p */
   cannotSeek: ({ player }) => ({
     en: `${player} cannot move within a live stream.`,
     fr: `${player} ne peut pas se déplacer dans un direct.`,
