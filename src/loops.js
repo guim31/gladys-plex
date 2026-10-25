@@ -59,7 +59,10 @@ export class RefreshLoops {
       this.refreshLibraries();
     }, this.config.poll_frequency * 1_000);
     this.notifications = this.createNotifications(this.config, {
-      onPlaying: () => this.monitor.scheduleSessionRefresh(),
+      onPlaying: (entries) => {
+        this.monitor.notePlayQueues(entries);
+        this.monitor.scheduleSessionRefresh();
+      },
     });
     this.notifications.start();
   }

@@ -355,3 +355,39 @@ test('a notification socket that never opens stays out of the info logs', async 
   assert.equal(logs.at('INFO').length, 1);
   assert.match(logs.at('INFO')[0], /Connected to the Plex notification socket/);
 });
+
+test('a `playing` notification hands its entries (the play queue) to the handler', async (t) => {
+  const { FakeSocket, sockets } = createFakeSocketClass();
+  const received = [];
+  const notifications = new PlexNotifications(
+    CONFIG,
+    { onPlaying: (entries) => received.push(entries) },
+    { WebSocketImpl: FakeSocket },
+  );
+  t.after(() => notifications.stop());
+  notifications.start();
+  // Captured on Plex Media Server 1.43.
+  const entry = {
+    sessionKey: '1',
+    clientIdentifier: 'fake-player-1',
+    ratingKey: '16',
+    key: '/library/metadata/16',
+    viewOffset: 5000,
+    playQueueItemID: 2,
+    playQueueID: 1,
+    state: 'playing',
+  };
+  sockets[0].emit(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        NotificationContainer: { type: 'playing', size: 1, PlaySessionStateNotification: [entry] },
+      }),
+    ),
+  );
+  sockets[0].emit(
+    'message',
+    Buffer.from(JSON.stringify({ NotificationContainer: { type: 'timeline' } })),
+  );
+  assert.deepEqual(received, [[entry]]);
+});

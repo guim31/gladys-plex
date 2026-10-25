@@ -8,13 +8,19 @@
 //   - buildDevices()     : discovery payload (server device + player devices);
 //   - refreshSessions()  : poll /status/sessions and publish playback states;
 //   - refreshLibraries() : poll the library item counts;
-//   - handleSetValue()   : run a user command on a player.
+//   - handleSetValue()   : run a user command on a player;
+//   - publishNowPlaying(): the Gladys 5.3 music player of every player;
+//   - catalog            : the music panel (src/catalog.js).
 //
 // States are deduplicated before publishing (a 10 s session poll would
 // otherwise republish identical values forever).
 // -----------------------------------------------------------------------------
 
-import { createLogger } from '@gladysassistant/integration-sdk';
+import {
+  createLogger,
+  DEVICE_FEATURE_CATEGORIES,
+  MUSIC_PLAYBACK_STATE,
+} from '@gladysassistant/integration-sdk';
 import { PlexApi, PLEX_METADATA_TYPES, PLEX_CLIENT_PORT } from './plex/api.js';
 import {
   normalizeMetadata,
@@ -37,7 +43,11 @@ import {
   playerFeatureKey,
   PLAYER_FEATURE,
   PLAYER_COMMAND_PATHS,
+  nowPlayingOf,
+  nowPlayingFeatureIds,
 } from './devices/player.js';
+import { MusicCatalog, ARTWORK_SIZE } from './catalog.js';
+import { localizedError } from './messages.js';
 
 import { diffPlayback, playbackOf, buildEventData } from './scene-events.js';
 import {
@@ -104,6 +114,16 @@ export class PlexMonitor {
     this.hasBaseline = false;
     /** @type {Map<string, { path: string, kind: string }>} Artwork by widget image key. */
     this.artworks = new Map();
+    /** The music panel of Gladys 5.3. */
+    this.catalog = new MusicCatalog(this);
+    /**
+     * Play queue of each player, from the `playing` notifications (not in
+     * /status/sessions).
+     * @type {Map<string, { playQueueID: string, playQueueItemID: string|null }>}
+     */
+    this.playQueues = new Map();
+    /** @type {Map<string, string>} Last position sample published, by player. */
+    this.positionSamples = new Map();
     // Session refreshes run one at a time: a poll and a notification-driven
     // refresh arriving together must not interleave (duplicate scene events).
     this.queue = Promise.resolve();
@@ -200,11 +220,6 @@ export class PlexMonitor {
       const markers = await this.getMarkers(session);
       this.collectIfChanged(
         states,
-        ids.feature(PLAYER_FEATURE.PLAYBACK_STATE),
-        session.state === 'playing' ? 1 : 0,
-      );
-      this.collectIfChanged(
-        states,
         ids.feature(PLAYER_FEATURE.REMAINING),
         remainingMinutes(session),
       );
@@ -228,7 +243,6 @@ export class PlexMonitor {
     for (const machineIdentifier of this.players.keys()) {
       if (!this.activeSessions.has(machineIdentifier)) {
         const ids = playerExternalIds(this.gladys, machineIdentifier);
-        this.collectIfChanged(states, ids.feature(PLAYER_FEATURE.PLAYBACK_STATE), 0);
         this.collectIfChanged(states, ids.feature(PLAYER_FEATURE.REMAINING), 0);
         this.collectIfChanged(states, ids.feature(PLAYER_FEATURE.IN_INTRO), 0);
         this.collectIfChanged(states, ids.feature(PLAYER_FEATURE.IN_CREDITS), 0);
@@ -261,8 +275,142 @@ export class PlexMonitor {
     if (states.length > 0) {
       await this.gladys.publishStates(states);
     }
+    await this.publishNowPlaying();
     await this.fireSceneEvents(previousSessions);
     return newPlayers;
+  }
+
+  /**
+   * The Gladys 5.3 "now playing" of every known player — playback state,
+   * title, artist, album, artwork, duration and position — through
+   * publishNowPlaying, which sends only what changed. The only channel of
+   * these features (never publishStates as well).
+   */
+  async publishNowPlaying() {
+    for (const machineIdentifier of this.players.keys()) {
+      const ids = playerExternalIds(this.gladys, machineIdentifier);
+      const session = this.activeSessions.get(machineIdentifier) ?? null;
+      const snapshot = nowPlayingOf(session, (path) =>
+        this.catalog.artworkUrl(path, ARTWORK_SIZE.player),
+      );
+      // The server keeps the last position the player reported, without
+      // extrapolating it (checked on PMS 1.43). The same sample seen again
+      // while the same media plays is stale: leave it out, the SDK and the
+      // dashboard keep extrapolating it (else it would drift past 3 s and be
+      // republished backwards at every poll).
+      const sample = `${session?.state}|${session?.ratingKey}|${session?.viewOffset}`;
+      if (session?.state === 'playing' && this.positionSamples.get(machineIdentifier) === sample) {
+        delete snapshot.position;
+      }
+      // One player refused must not stop the others, nor the scene events.
+      // The sample is remembered once published (a refused batch goes again).
+      try {
+        await this.gladys.publishNowPlaying(ids.device, snapshot, {
+          featureExternalIds: nowPlayingFeatureIds(ids),
+        });
+        this.positionSamples.set(machineIdentifier, sample);
+      } catch (err) {
+        logger.debug(`publishNowPlaying(${machineIdentifier}) failed: ${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * Players added in Gladys that the server does not list (a phone that was
+   * playing when the integration restarted): published idle once, so the
+   * Music widget does not show a track forever.
+   */
+  async publishAbsentPlayersIdle() {
+    if (typeof this.gladys.getDevices !== 'function') {
+      return;
+    }
+    const devices = await this.gladys.getDevices().catch(() => []);
+    for (const device of Array.isArray(devices) ? devices : []) {
+      const machineIdentifier = extractPlayerMachineId(String(device?.external_id ?? ''));
+      if (!machineIdentifier || this.players.has(machineIdentifier)) {
+        continue;
+      }
+      const ids = playerExternalIds(this.gladys, machineIdentifier);
+      await this.gladys
+        .publishNowPlaying(
+          ids.device,
+          nowPlayingOf(null, () => null),
+          {
+            featureExternalIds: nowPlayingFeatureIds(ids),
+          },
+        )
+        .catch((err) =>
+          logger.debug(`publishNowPlaying(${machineIdentifier}) failed: ${err.message}`),
+        );
+    }
+  }
+
+  /**
+   * Remember the play queue of each player from the `playing` notifications
+   * (`clientIdentifier` is the player's machineIdentifier).
+   * @param {Array<{ clientIdentifier?: string, playQueueID?: number|string, playQueueItemID?: number|string, state?: string }>} entries
+   */
+  notePlayQueues(entries) {
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      const player = entry?.clientIdentifier;
+      if (typeof player !== 'string' || player === '') {
+        continue;
+      }
+      const id = Number(entry.playQueueID);
+      if (entry.state === 'stopped' || !Number.isInteger(id) || id <= 0) {
+        this.playQueues.delete(player);
+        continue;
+      }
+      this.playQueues.set(player, {
+        playQueueID: String(id),
+        playQueueItemID: entry.playQueueItemID !== undefined ? String(entry.playQueueItemID) : null,
+      });
+    }
+  }
+
+  /**
+   * The play queue of a player that is playing now, or null.
+   * @param {string} machineIdentifier
+   */
+  playQueueOf(machineIdentifier) {
+    if (!this.activeSessions.has(machineIdentifier)) {
+      return null;
+    }
+    return this.playQueues.get(machineIdentifier) ?? null;
+  }
+
+  /**
+   * The player a music command targets.
+   * @param {{ external_id?: string }} device
+   * @returns {{ machineIdentifier: string, name: string }}
+   */
+  playerOf(device) {
+    const machineIdentifier = extractPlayerMachineId(String(device?.external_id ?? ''));
+    if (!machineIdentifier) {
+      throw localizedError('notAPlayer', this.config.language);
+    }
+    const session = this.activeSessions.get(machineIdentifier);
+    const name =
+      this.players.get(machineIdentifier)?.name ?? session?.playerName ?? machineIdentifier;
+    return { machineIdentifier, name };
+  }
+
+  /**
+   * Publish a value the player accepted (volume, mute: the server does not
+   * report them). A refusal of Gladys (rate limit, disconnection) must not
+   * turn a command Plex executed into an error.
+   */
+  async publishAccepted(deviceExternalId, values) {
+    await this.gladys
+      .publishNowPlaying(deviceExternalId, values)
+      .catch((err) =>
+        logger.debug(`publishNowPlaying(${deviceExternalId}) failed: ${err.message}`),
+      );
+  }
+
+  /** One info line per media started from Gladys. */
+  logPlay(player, what, mode) {
+    logger.info(`Music ${mode}: ${what} on player ${player.machineIdentifier}`);
   }
 
   /**
@@ -430,10 +578,12 @@ export class PlexMonitor {
    * Poll the item counts of every library and publish them.
    */
   async refreshLibraries() {
+    // Reloaded even without the sensors: the music panel lists the music
+    // libraries.
+    this.libraries = await this.api.getLibraries();
     if (!this.config.library_sensors) {
       return;
     }
-    this.libraries = await this.api.getLibraries();
     const serverIds = serverExternalIds(this.gladys, this.serverInfo.machineIdentifier);
     const states = [];
     for (const library of this.libraries) {
@@ -477,22 +627,73 @@ export class PlexMonitor {
     const session = this.activeSessions.get(machineIdentifier);
     const commandType = commandTypeForMedia(session?.mediaType ?? 'video');
 
+    const language = this.config.language;
+    const player = () => this.players.get(machineIdentifier)?.name ?? machineIdentifier;
+
     if (PLAYER_COMMAND_PATHS[key]) {
       await this.sendPlayerCommand(machineIdentifier, key, PLAYER_COMMAND_PATHS[key], {
         type: commandType,
       });
+    } else if (key === PLAYER_FEATURE.PLAYBACK_STATE) {
+      // Gladys 5.3: 0 pause, 1 play, 2 stop (3, buffering, is reported only).
+      const state = Number(value);
+      if (state === MUSIC_PLAYBACK_STATE.IDLE) {
+        if (session) {
+          await this.sendPlayerCommand(
+            machineIdentifier,
+            PLAYER_FEATURE.STOP,
+            PLAYER_COMMAND_PATHS.stop,
+            {
+              type: commandType,
+            },
+          );
+        }
+      } else if (state === MUSIC_PLAYBACK_STATE.PAUSED || state === MUSIC_PLAYBACK_STATE.PLAYING) {
+        if (!session) {
+          throw localizedError('nothingLoaded', language, { player: player() });
+        }
+        const command =
+          state === MUSIC_PLAYBACK_STATE.PLAYING ? PLAYER_FEATURE.PLAY : PLAYER_FEATURE.PAUSE;
+        await this.sendPlayerCommand(machineIdentifier, command, PLAYER_COMMAND_PATHS[command], {
+          type: commandType,
+        });
+      } else {
+        throw localizedError('badValue', language);
+      }
+    } else if (key === PLAYER_FEATURE.POSITION) {
+      // Gladys 5.3: a write of the position is a seek (seconds).
+      if (!session) {
+        throw localizedError('nothingLoaded', language, { player: player() });
+      }
+      if (session.item?.live) {
+        throw localizedError('cannotSeek', language, { player: player() });
+      }
+      const position = Number(value);
+      if (!Number.isFinite(position) || position < 0) {
+        throw localizedError('badValue', language);
+      }
+      const offset = Math.round(Math.min(position * 1000, session.duration || Infinity));
+      await this.sendPlayerCommand(machineIdentifier, key, '/player/playback/seekTo', {
+        type: commandType,
+        offset,
+      });
     } else if (key === PLAYER_FEATURE.VOLUME) {
-      const volume = Math.max(0, Math.min(100, Math.round(value)));
+      const volume = Math.max(0, Math.min(100, Math.round(Number(value))));
       await this.sendPlayerCommand(machineIdentifier, key, '/player/playback/setParameters', {
         type: commandType,
         volume,
       });
-      await this.gladys.publishState(feature.external_id, volume);
+      // The server does not report the volume: the player accepted it.
+      await this.publishAccepted(ids.device, { volume });
     } else if (key === PLAYER_FEATURE.MUTE) {
-      // Gladys renders mute as a push button: it always sends 1, so the
-      // feature has to behave as a TOGGLE. Plex has no "toggle mute"
-      // command, so we track the state we last set for this player.
-      const muted = !this.mutedPlayers.has(machineIdentifier);
+      // music/mute (1.3): the value is the wanted state. Before "Update" in
+      // Discover, the feature is still the television/volume_mute of 1.2, a
+      // push button that always sends 1: keep it a TOGGLE then. Plex has no
+      // "toggle mute" command and does not report it: we track what we set.
+      const muted =
+        feature?.category === DEVICE_FEATURE_CATEGORIES.TELEVISION
+          ? !this.mutedPlayers.has(machineIdentifier)
+          : Number(value) === 1;
       await this.sendPlayerCommand(machineIdentifier, key, '/player/playback/setParameters', {
         type: commandType,
         mute: muted ? 1 : 0,
@@ -502,7 +703,7 @@ export class PlexMonitor {
       } else {
         this.mutedPlayers.delete(machineIdentifier);
       }
-      await this.gladys.publishState(feature.external_id, muted ? 1 : 0);
+      await this.publishAccepted(ids.device, { mute: muted ? 1 : 0 });
     } else {
       throw new Error(`No command handler for ${feature.external_id}`);
     }
@@ -717,6 +918,9 @@ export class PlexMonitor {
    *   device (its external_id); omit to forget everything.
    */
   resetPublicationCache(externalIdPrefix) {
+    // The SDK forgets its now-playing snapshot of a created or updated
+    // device: forget the position sample too, so the position goes again.
+    this.positionSamples.clear();
     if (!externalIdPrefix) {
       this.lastPublished.clear();
       return;

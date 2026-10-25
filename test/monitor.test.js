@@ -25,6 +25,10 @@ async function createMonitor(options) {
   return { gladys, monitor };
 }
 
+// Features published through publishNowPlaying (the SDK diffs them; the fake
+// Gladys of this file does not).
+const MUSIC_CHANNEL = /:(playback-state|duration|position|volume|mute)$/;
+
 function statesByFeature(gladys) {
   return Object.fromEntries(gladys.published.map((s) => [s.featureExternalId, s.state]));
 }
@@ -120,9 +124,10 @@ test('refreshSessions publishes playback states, markers and server activity', a
 test('refreshSessions publishes only the changes (deduplication)', async () => {
   const { gladys, monitor } = await createMonitor();
   await monitor.refreshSessions();
-  const before = gladys.published.length;
+  const others = () => gladys.published.filter((s) => !MUSIC_CHANNEL.test(s.featureExternalId));
+  const before = others().length;
   await monitor.refreshSessions();
-  assert.equal(gladys.published.length, before, 'identical states must not be republished');
+  assert.equal(others().length, before, 'identical states must not be republished');
 });
 
 test('a player going idle is reset to a stopped state', async () => {
@@ -135,12 +140,16 @@ test('a player going idle is reset to a stopped state', async () => {
   await monitor.refreshSessions();
   const states = statesByFeature(gladys);
 
-  assert.equal(states['ext:plex:player:client-tv:playback-state'], 0);
+  // Gladys 5.3: nothing loaded is IDLE (2), the texts cleared explicitly.
+  assert.equal(states['ext:plex:player:client-tv:playback-state'], 2);
+  assert.equal(states['ext:plex:player:client-tv:position'], 0);
   assert.equal(states['ext:plex:player:client-tv:remaining'], 0);
   assert.equal(states['ext:plex:player:client-tv:intro'], 0);
   assert.equal(states['ext:plex:server:srv-abc123:active-streams'], 0);
   const texts = Object.fromEntries(gladys.textStates.map((t) => [t.featureExternalId, t.text]));
   assert.equal(texts['ext:plex:player:client-tv:now-playing'], '-');
+  assert.equal(texts['ext:plex:player:client-tv:title'], '');
+  assert.equal(texts['ext:plex:player:client-tv:artwork'], '');
 });
 
 test('refreshSessions reports never-seen players so discovery is republished', async () => {
@@ -279,13 +288,13 @@ test('a command refused by Plex reports a clear error, and stop kills the sessio
   monitor.stop();
 });
 
-test('mute toggles instead of always muting', async () => {
-  // Gladys renders mute as a push button: it always sends the value 1, so
-  // the integration has to alternate mute/unmute itself.
+test('mute toggles while it is still the television push button of 1.2', async () => {
+  // Before "Update" in Discover, Gladys renders mute as a push button: it
+  // always sends the value 1, so the integration alternates mute/unmute.
   const { gladys, monitor } = await createMonitor();
   await monitor.refreshSessions();
   const device = { external_id: 'ext:plex:player:client-tv' };
-  const mute = { external_id: `${device.external_id}:mute` };
+  const mute = { external_id: `${device.external_id}:mute`, category: 'television' };
 
   await monitor.handleSetValue(device, mute, 1);
   assert.deepEqual(monitor.api.commands.at(-1).params, { type: 'video', mute: 1 });
@@ -303,15 +312,16 @@ test('resetPublicationCache republishes the states of a freshly created device',
   await monitor.refreshSessions();
   gladys.published.length = 0;
 
-  // Steady state: nothing changed, nothing republished.
+  // Steady state: nothing changed, nothing republished (the music channel is
+  // diffed by the SDK, not by this fake).
   await monitor.refreshSessions();
-  assert.equal(gladys.published.length, 0);
+  assert.equal(gladys.published.filter((s) => !MUSIC_CHANNEL.test(s.featureExternalId)).length, 0);
 
   // The user adds the TV device in Gladys: its states must be sent again.
   monitor.resetPublicationCache('ext:plex:player:client-tv');
   await monitor.refreshSessions();
   const republished = gladys.published.map((s) => s.featureExternalId);
-  assert.ok(republished.includes('ext:plex:player:client-tv:playback-state'));
+  assert.ok(republished.includes('ext:plex:player:client-tv:remaining'));
   assert.ok(!republished.some((id) => id.startsWith('ext:plex:server:')));
 });
 
@@ -328,13 +338,21 @@ test('handleSetValue clamps the volume and publishes it back', async () => {
   monitor.stop();
 });
 
-test('handleSetValue toggles mute through setParameters', async () => {
-  const { monitor } = await createMonitor();
+test('handleSetValue: music/mute sets the wanted state and publishes it back', async () => {
+  const { gladys, monitor } = await createMonitor();
   const device = { external_id: 'ext:plex:player:client-tv' };
-  await monitor.handleSetValue(device, { external_id: `${device.external_id}:mute` }, 1);
+  const mute = { external_id: `${device.external_id}:mute`, category: 'music' };
+  await monitor.handleSetValue(device, mute, 1);
   assert.deepEqual(monitor.api.commands[0].params, { type: 'video', mute: 1 });
-  await monitor.handleSetValue(device, { external_id: `${device.external_id}:mute` }, 0);
-  assert.deepEqual(monitor.api.commands[1].params, { type: 'video', mute: 0 });
+  await monitor.handleSetValue(device, mute, 1);
+  assert.deepEqual(monitor.api.commands[1].params, { type: 'video', mute: 1 }, 'no toggle');
+  await monitor.handleSetValue(device, mute, 0);
+  assert.deepEqual(monitor.api.commands[2].params, { type: 'video', mute: 0 });
+  assert.deepEqual(gladys.nowPlaying.at(-1), {
+    device: device.external_id,
+    snapshot: { mute: 0 },
+    options: {},
+  });
   monitor.stop();
 });
 

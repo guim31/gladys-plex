@@ -33,7 +33,7 @@ export const STABLE_CONNECTION_MS = 60_000;
 export class PlexNotifications {
   /**
    * @param {{ plex_url: string, plex_token: string }} config
-   * @param {{ onPlaying: () => void }} handlers - `onPlaying` is debounced by
+   * @param {{ onPlaying: (entries: Array<object>) => void }} handlers - `onPlaying` is debounced by
    *   the caller; it is invoked for every playback-related event.
    * @param {{ WebSocketImpl?: typeof WebSocket }} [options] - Socket class
    *   (the tests pass an in-memory one).
@@ -97,7 +97,9 @@ export class PlexNotifications {
       try {
         const container = JSON.parse(raw.toString())?.NotificationContainer;
         if (container?.type === 'playing') {
-          this.onPlaying();
+          // The entries carry what /status/sessions does not: the play queue
+          // of the player (`playQueueID`, `playQueueItemID`).
+          this.onPlaying(container.PlaySessionStateNotification ?? []);
         }
       } catch {
         // Non-JSON frames are ignored: the poll remains the source of truth.

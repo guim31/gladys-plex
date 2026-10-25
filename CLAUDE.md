@@ -2,13 +2,13 @@
 
 Contrôlez vos lecteurs Plex : lecture, en cours, activité et bibliothèques.
 
-Intégration externe pour [Gladys Assistant](https://gladysassistant.com), bâtie sur le template officiel `GladysAssistant/integration-template-js` (SDK `@gladysassistant/integration-sdk` ^0.15.0, `gladys_version` `>=5.1.0`). Mainteneur : Guilhem (`guim31`).
+Intégration externe pour [Gladys Assistant](https://gladysassistant.com), bâtie sur le template officiel `GladysAssistant/integration-template-js` (SDK `@gladysassistant/integration-sdk` ^0.16.0, `gladys_version` `>=5.3.0`). Mainteneur : Guilhem (`guim31`).
 
 Ce fichier rassemble ce qu'une session de code doit savoir et qui ne se lit pas dans le code : choix de conception, faits vérifiés en réel, pièges déjà payés. Le compléter quand un nouveau piège est découvert.
 
-## État au 02/10/2026
+## État au 25/10/2026
 
-Version 1.1.1 publiée, indexée dans le store. Jumelle de `guim31/gladys-jellyfin` : mêmes quatre
+Version 1.3.0 : lecteur Musique de Gladys 5.3 (ci-dessous). Indexée dans le store. Jumelle de `guim31/gladys-jellyfin` : mêmes quatre
 déclencheurs `playback_*`, mêmes widgets `now_playing`, `player` et `latest_media`. Un changement
 de l'une se reporte souvent dans l'autre.
 
@@ -21,9 +21,10 @@ de l'une se reporte souvent dans l'autre.
 - Widget `player` : sans lecteur choisi, ou si l'appareil choisi est le serveur, il suit la
   lecture en cours (retour de Guilhem, 1.1.1). Plex Web dans un navigateur n'est pas un appareil
   Gladys.
-- Pas d'action de scène : Plex n'a pas d'API de message, et `playMedia` exige une playQueue, non
-  testable sans vrai lecteur.
-- `gladys_version >=5.1.0` depuis la 1.1.0.
+- Pas d'action de scène propre : Plex n'a pas d'API de message. Lancer un média passe par
+  l'action du cœur `music.play-media` (Gladys 5.3, ci-dessous).
+- `gladys_version >=5.1.0` depuis la 1.1.0, `>=5.3.0` depuis la 1.3.0 (champ `music`).
+
 - **Polling** : aucun appareil ne demande à être sondé (ni `should_poll` ni
   `poll_frequency` publiés). Toutes les valeurs viennent des minuteurs de `src/loops.js` (sessions toutes
   les `session_poll_frequency` s, bibliothèques toutes les `poll_frequency` s, socket de
@@ -51,6 +52,40 @@ de l'une se reporte souvent dans l'autre.
   `ALLOWED_NETWORKS` couvre le client ne demande aucun jeton, et un simple
   `/:/timeline?state=…` avec des en-têtes `X-Plex-Client-Identifier` crée une vraie session dans
   `/status/sessions`. Les commandes à distance, elles, ne se simulent pas.
+
+## Lecteur Musique de Gladys 5.3 (1.3.0)
+
+- Contrat : `capabilities/music.md` du cœur. `publishNowPlaying` (SDK) est le **seul canal** de
+  `playback_state`, `title`, `artist`, `album`, `artwork`, `duration`, `position`, `volume`,
+  `mute` ; `processSessions` ne publie plus `playback-state` par `publishStates`. Ids gardés :
+  `playback-state` (par `featureExternalIds`), `volume`, `mute` (television/volume_mute → music/mute
+  par « Mettre à jour » ; avant, `onSetValue` reçoit encore la catégorie television : bascule
+  gardée). Arrêt = 2 (IDLE), chargement = 3.
+- **Ni aléatoire ni répétition** : le serveur ne les publie pas (seule la timeline du lecteur,
+  `/player/timeline/poll`, les donne). Volume et sourdine non plus : publiés après une commande
+  acceptée.
+- **Position** : `viewOffset` de `/status/sessions` n'est **pas extrapolé** par le serveur (resté
+  à 5000 une minute durant, PMS 1.43) : un échantillon répété pendant la lecture est retiré de
+  l'instantané (`positionSamples`), sinon le SDK le republierait en arrière.
+- **File d'attente** : absente de `/status/sessions`. Les notifications `playing` portent
+  `playQueueID` / `playQueueItemID` par `clientIdentifier` (= `machineIdentifier`) :
+  `notePlayQueues()`. Le serveur suit l'élément que le lecteur rapporte
+  (`playQueueSelectedItemOffset`) et pagine `/playQueues/<id>` avec `X-Plex-Container-Start/Size`.
+- **Commandes companion** (dépendent de l'appli) : `playMedia` (playQueue créée par
+  `POST /playQueues`, paramètres de python-plexapi, jeton `/security/token?type=delegation` ; un serveur non réclamé répond 400 (vu de l'hôte) ou 403
+  (vu d'un conteneur) → jeton configuré, toute autre erreur fait échouer : le jeton
+  administrateur ne part jamais par défaut), `refreshPlayQueue` après `PUT /playQueues/<id>`
+  (suite / fin de file), `skipTo` (clé + `playQueueItemID`), `seekTo` (ms). Un lecteur répond en
+  **XML** (`<Response code="200"/>`) : `playerCommand` ne lit pas le corps (bug corrigé en 1.3.0,
+  la route directe signalait un échec après avoir exécuté la commande).
+- **Pochettes** : transcodeur avec `format=jpeg` (sans lui, une source PNG revient en PNG lourd,
+  étiqueté image/jpeg). `onMusicGetArtwork` maison (jeton en en-tête, jamais dans l'URL ni la clé).
+- **Banc** (25/10, vérifié) : `plexinc/pms-docker` non réclamé, `ALLOWED_NETWORKS` = sous-réseau du
+  réseau Docker, bibliothèque générée par ffmpeg (MP3 tagués, pochettes intégrées), faux lecteur
+  companion Node (port 32500, timelines `/:/timeline` avec `containerKey`/`playQueueItemID`).
+  **Appeler le serveur par son IP** : par son nom DNS, un PMS non réclamé répond 401 même depuis un
+  réseau autorisé (protection contre le DNS rebinding). Un vrai client Plex (Plexamp, Plex Web)
+  demande un compte plex.tv : non testé.
 
 ## Travailler sur ce dépôt
 

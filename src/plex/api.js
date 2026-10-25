@@ -33,6 +33,11 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // two routes (through the server, then straight to the player).
 const COMMAND_TIMEOUT_MS = 2_000;
 
+// Music panel (Gladys 5.3): Gladys waits 10 s for a music command, 15 s for
+// an artwork. A listing is one request; playing chains up to three short
+// ones (item, play queue, token) and the player command.
+export const MUSIC_TIMEOUT_MS = { list: 5_000, step: 2_000, image: 4_000 };
+
 // Port a Plex client advertising itself as a player listens on.
 export const PLEX_CLIENT_PORT = 32500;
 
@@ -77,6 +82,7 @@ export class PlexApi {
     let response;
     try {
       response = await fetch(url, {
+        method: options.method ?? 'GET',
         headers: {
           Accept: options.binary ? 'image/*' : 'application/json',
           'X-Plex-Token': this.token,
@@ -99,6 +105,12 @@ export class PlexApi {
     }
     if (options.binary) {
       return Buffer.from(await response.arrayBuffer());
+    }
+    if (options.ignoreBody) {
+      // A player answers its commands in XML (`<Response code="200" …/>`),
+      // whatever the Accept header: the status code is the answer.
+      await response.body?.cancel().catch(() => {});
+      return null;
     }
     const text = await response.text();
     if (text.length === 0) {
@@ -230,13 +242,176 @@ export class PlexApi {
    * @param {number} height
    * @returns {Promise<Buffer>} JPEG bytes.
    */
-  async getImage(imagePath, width, height) {
+  async getImage(imagePath, width, height, format, timeoutMs) {
+    // Without `format`, the transcoder keeps the format of the source: a PNG
+    // cover comes back as a heavy PNG (186 KB at 400 px for a noisy one,
+    // checked on PMS 1.43, labelled image/jpeg). `format=jpeg` gives ~30 KB.
     return this.request(
       '/photo/:/transcode',
-      { url: imagePath, width, height, minSize: 1, upscale: 0 },
+      { url: imagePath, width, height, minSize: 1, upscale: 0, ...(format ? { format } : {}) },
       {},
-      { binary: true },
+      { binary: true, ...(timeoutMs ? { timeoutMs } : {}) },
     );
+  }
+
+  // --- Music library (Gladys 5.3 music panel) ---------------------------------
+
+  /**
+   * One page of a MediaContainer listing, with its full size.
+   * @param {string} path
+   * @param {Record<string, string|number>} params
+   * @param {{ offset?: number, limit?: number }} [page]
+   * @returns {Promise<{ items: Array<object>, total: number }>}
+   */
+  async page(path, params = {}, { offset = 0, limit = 50 } = {}) {
+    const data = await this.request(
+      path,
+      { ...params, 'X-Plex-Container-Start': offset, 'X-Plex-Container-Size': limit },
+      {},
+      { timeoutMs: MUSIC_TIMEOUT_MS.list },
+    );
+    const container = data?.MediaContainer ?? {};
+    const items = container.Metadata ?? container.Directory ?? [];
+    const total = Number(container.totalSize);
+    if (Number.isInteger(total) && total >= 0) {
+      return { items, total };
+    }
+    // No full size (`size` is the page's): a full page announces one more
+    // row, so the panel asks for the next page.
+    return { items, total: offset + items.length + (items.length >= limit ? 1 : 0) };
+  }
+
+  /**
+   * One library item, or null when the server does not know it (404).
+   * @param {string} ratingKey
+   * @returns {Promise<object|null>}
+   */
+  async getMetadata(ratingKey) {
+    try {
+      const data = await this.request(
+        `/library/metadata/${encodeURIComponent(ratingKey)}`,
+        {},
+        {},
+        { timeoutMs: MUSIC_TIMEOUT_MS.step },
+      );
+      return data?.MediaContainer?.Metadata?.[0] ?? null;
+    } catch (err) {
+      if (/HTTP 404/.test(err.message)) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Search every library (`/hubs/search`): one hub per item type, `limit`
+   * items per hub at most.
+   * @param {string} query
+   * @param {number} limit
+   * @returns {Promise<Array<{ type: string, items: Array<object> }>>}
+   */
+  async searchHubs(query, limit) {
+    const data = await this.request(
+      '/hubs/search',
+      { query, limit },
+      {},
+      { timeoutMs: MUSIC_TIMEOUT_MS.list },
+    );
+    return (data?.MediaContainer?.Hub ?? []).map((hub) => ({
+      type: hub.type,
+      items: hub.Metadata ?? [],
+    }));
+  }
+
+  /**
+   * Create a play queue on the server (what a Plex app plays from).
+   * @param {{ uri?: string, playlistID?: string }} source
+   * @returns {Promise<object>} The MediaContainer of the new queue.
+   */
+  async createPlayQueue({ uri, playlistID }) {
+    const data = await this.request(
+      '/playQueues',
+      {
+        type: 'audio',
+        ...(uri ? { uri } : {}),
+        ...(playlistID ? { playlistID } : {}),
+        shuffle: 0,
+        repeat: 0,
+        continuous: 0,
+        own: 1,
+      },
+      {},
+      { method: 'POST', timeoutMs: MUSIC_TIMEOUT_MS.step },
+    );
+    return data?.MediaContainer ?? {};
+  }
+
+  /**
+   * Add items to an existing play queue, after the current item (`next`) or
+   * at the end.
+   * @param {string|number} playQueueId
+   * @param {{ uri?: string, playlistID?: string }} source
+   * @param {boolean} next
+   */
+  async addToPlayQueue(playQueueId, { uri, playlistID }, next) {
+    const data = await this.request(
+      `/playQueues/${encodeURIComponent(playQueueId)}`,
+      { ...(uri ? { uri } : {}), ...(playlistID ? { playlistID } : {}), next: next ? 1 : 0 },
+      {},
+      { method: 'PUT', timeoutMs: MUSIC_TIMEOUT_MS.step },
+    );
+    return data?.MediaContainer ?? {};
+  }
+
+  /**
+   * A page of a play queue. The server follows the item the player reports
+   * (`playQueueSelectedItemOffset`) and pages with the container headers
+   * (checked on PMS 1.43).
+   * @param {string|number} playQueueId
+   * @param {{ offset: number, limit: number }} page
+   * @returns {Promise<{ items: Array<object>, total: number, currentIndex: number|null }>}
+   */
+  async getPlayQueue(playQueueId, { offset, limit }) {
+    const data = await this.request(
+      `/playQueues/${encodeURIComponent(playQueueId)}`,
+      { own: 0, 'X-Plex-Container-Start': offset, 'X-Plex-Container-Size': limit },
+      {},
+      { timeoutMs: MUSIC_TIMEOUT_MS.list },
+    );
+    const container = data?.MediaContainer ?? {};
+    const items = container.Metadata ?? [];
+    const total = Number(container.playQueueTotalCount);
+    const current = Number(container.playQueueSelectedItemOffset);
+    return {
+      items,
+      total: Number.isInteger(total) && total >= 0 ? total : items.length,
+      currentIndex: Number.isInteger(current) && current >= 0 ? current : null,
+    };
+  }
+
+  /**
+   * A short-lived token a player can use to stream from the server (what the
+   * official controllers hand over in `playMedia`). Null only when the
+   * server has none to give (an unclaimed server answers 400 or 403, checked
+   * on PMS 1.43): a timeout or a server error throws, so the configured token
+   * is never handed over by default.
+   * @returns {Promise<string|null>}
+   */
+  async getTransientToken() {
+    try {
+      const data = await this.request(
+        '/security/token',
+        { type: 'delegation', scope: 'all' },
+        {},
+        { timeoutMs: MUSIC_TIMEOUT_MS.step },
+      );
+      return data?.MediaContainer?.token ?? null;
+    } catch (err) {
+      if (/HTTP (400|403|404)\b/.test(err.message)) {
+        return null;
+      }
+      throw err;
+    }
   }
 
   /**
@@ -273,7 +448,7 @@ export class PlexApi {
       { 'X-Plex-Target-Client-Identifier': machineIdentifier },
       // Gladys acks a command within 5 s: keep every attempt short so the
       // server route, the direct route and the fallback all fit in budget.
-      { timeoutMs: COMMAND_TIMEOUT_MS, ...options },
+      { timeoutMs: COMMAND_TIMEOUT_MS, ignoreBody: true, ...options },
     );
   }
 }

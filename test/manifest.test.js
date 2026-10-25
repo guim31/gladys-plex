@@ -126,10 +126,12 @@ test('widgets and scene triggers match what the code registers and fires', async
   }
 });
 
-test('widgets and scene declarations need Gladys 5.1', () => {
-  // Older cores reject any unknown manifest field: claiming compatibility
-  // below 5.1.0 would make the update fail on them.
-  assert.match(manifest.gladys_version, />=\s*5\.1\.0/);
+test('the music field needs Gladys 5.3', () => {
+  // Older cores reject any unknown manifest field (widgets and scene
+  // declarations since 5.1, the music player since 5.3): claiming an older
+  // compatibility would make the update fail on them.
+  assert.match(manifest.gladys_version, />=\s*5\.3\.0/);
+  assert.deepEqual(manifest.music, { browse: true, search: true, queue: true, append: true });
 });
 
 test('number fields use whole min and default values', () => {
