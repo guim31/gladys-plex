@@ -81,6 +81,11 @@ export function normalizeMetadata(raw) {
           ? (raw.parentTitle ?? '')
           : '',
     album: raw.type === 'track' ? (raw.parentTitle ?? '') : '',
+    // Artist of the track itself when it differs from the album artist (a
+    // compilation): Plex keeps it in `originalTitle`.
+    trackArtist: raw.type === 'track' ? (raw.originalTitle ?? '') : '',
+    // "Season 1" of an episode.
+    seasonName: raw.type === 'episode' ? (raw.parentTitle ?? '') : '',
     season: Number.isInteger(raw.parentIndex) ? raw.parentIndex : null,
     episode: Number.isInteger(raw.index) ? raw.index : null,
     year: Number.isInteger(raw.year) ? raw.year : null,

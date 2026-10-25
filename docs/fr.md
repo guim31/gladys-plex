@@ -22,8 +22,11 @@ lecteur que votre serveur sait contrôler) :
 - Commandes de lecture : **Lecture, Pause, Stop, Précédent, Suivant, Retour,
   Avance** ;
 - **Volume** (0–100) et **Sourdine** ;
-- **État de lecture** (en lecture ou non) — compatible avec le widget
-  **Musique** du tableau de bord de Gladys ;
+- **État de lecture** — en lecture (1), en pause (0), arrêté (2) ou en
+  chargement (3), et une commande : l'écrire met en pause, lance ou arrête ;
+- **Titre**, **Artiste**, **Album**, **Pochette**, **Durée** et **Position**
+  de ce qui est joué (la position se règle : un déplacement dans le morceau) —
+  le widget **Musique** de Gladys 5.3 (voir plus bas) ;
 - **En cours de lecture** — le titre formaté du média
   (`Série S01E02 - Épisode`, `Artiste - Titre`, `Film (année)`) ;
 - **Temps restant**, en minutes ;
@@ -36,6 +39,50 @@ Les états de lecture se rafraîchissent toutes les quelques secondes
 (configurable), et l'intégration écoute aussi le flux de notifications temps
 réel du serveur : une lecture, une pause ou un arrêt est reflété dans Gladys
 en moins d'une seconde.
+
+## Lecteur Musique de Gladys 5.3
+
+La version 1.3 de l'intégration demande Gladys 5.3 ou plus récent (les
+versions précédentes de Gladys restent sur la 1.2). Depuis Gladys 5.3, la boîte
+**Musique** du tableau de bord est un vrai lecteur. Choisissez un lecteur Plex : elle montre ce qu'il joue (pochette,
+titre, artiste, album — pour un épisode : l'épisode, la série et la saison ;
+pour un film : son titre), une barre de progression que l'on fait glisser pour
+se déplacer, lecture / pause, précédent / suivant, le volume et la sourdine.
+
+- **Panneau Musique** : la loupe de la boîte parcourt vos bibliothèques
+  musicales (artistes, albums, playlists audio) et y cherche ; un appui lance
+  un morceau, un album, un artiste ou une playlist sur le lecteur, tout de
+  suite, à la suite ou en fin de file. L'icône liste montre la **file
+  d'attente** du lecteur, le morceau en cours surligné : un appui y saute. Le
+  même sélecteur sert à l'action de scène de Gladys **Lancer une musique sur une enceinte**
+  (_à 7 h, lancer la playlist « Matin » dans la cuisine_).
+- **Ce que le lecteur doit accepter** : les commandes passent par le contrôle
+  à distance de Plex (voir [Quels lecteurs sont pilotables ?](#quels-lecteurs-sont-pilotables-)).
+  La lecture depuis le panneau, la file et le saut utilisent les commandes que
+  les applications Plex emploient pour « caster » (`playMedia`,
+  `refreshPlayQueue`, `skipTo`) : un lecteur qui les refuse affiche une erreur
+  dans le panneau.
+- **La file d'attente** est celle que le serveur tient pour le lecteur. Son
+  identifiant arrive avec les notifications temps réel : après un redémarrage
+  de l'intégration, elle apparaît quelques secondes après le début de la
+  lecture.
+- **Ni aléatoire ni répétition** : le serveur ne les publie pas (seul le
+  lecteur les connaît), ces deux boutons n'apparaissent donc pas.
+- Le volume et la sourdine ne sont pas publiés par le serveur non plus : la
+  boîte montre la dernière valeur réglée depuis Gladys.
+- Les pochettes sont redimensionnées par votre serveur Plex, en JPEG, et
+  servies par l'intégration : le navigateur ne contacte jamais Plex.
+
+**Lecteurs ajoutés avant la version 1.3** : ouvrez l'onglet **Découverte** et
+cliquez sur **Mettre à jour** sur le lecteur pour recevoir les nouvelles
+fonctionnalités. Les fonctionnalités existantes gardent leurs identifiants,
+scènes et tableaux de bord continuent de marcher : **Sourdine** devient une
+sourdine musique (un interrupteur au lieu d'un bouton poussoir) et l'**État de
+lecture** devient pilotable. Deux comportements changent : un lecteur arrêté
+publie désormais **2** (il publiait 0), une scène « état de lecture = 0 » ne se
+déclenche donc plus sur un arrêt — utilisez 2, ou le déclencheur **Lecture
+arrêtée** ; et le texte **En cours de lecture** reste, à côté du nouveau
+**Titre**.
 
 ## Scènes
 
@@ -92,6 +139,8 @@ certificat auto-signé**.
   compteurs de bibliothèques (5 min par défaut).
 - **Capteurs de bibliothèques** — désactivez-le si vous ne voulez pas d'un
   compteur par bibliothèque sur l'appareil serveur.
+- **Langue du panneau Musique** — la langue des dossiers de la boîte Musique
+  et des messages renvoyés par ses commandes (français par défaut).
 
 ## Découverte des lecteurs
 
@@ -126,7 +175,10 @@ il coupe la lecture côté serveur, ce qui marche avec n'importe quel lecteur.
 ## Idées d'automatisations
 
 - Quand **Dans le générique** s'active dans le salon → rallumer les lumières ;
-- Quand **État de lecture** s'active après 22 h → tamiser les lumières à 20 % ;
+- Quand **État de lecture** passe à 1 (en lecture) après 22 h → tamiser les
+  lumières à 20 % ;
+- À 7 h en semaine → **Lancer une musique sur une enceinte** : votre playlist « Matin » sur
+  l'enceinte de la cuisine ;
 - Quand **Flux actifs** dépasse 3 → envoyer une notification (bande passante !) ;
 - Un bouton sur le tableau de bord pour mettre en **Pause** tous les lecteurs
   à l'heure du dîner.

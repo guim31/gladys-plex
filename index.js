@@ -19,6 +19,7 @@ import { PlexMonitor } from './src/monitor.js';
 import { RefreshLoops } from './src/loops.js';
 import { WIDGET } from './src/widgets.js';
 import { MESSAGES } from './src/messages.js';
+import { registerMusicHandlers } from './src/music.js';
 
 const gladys = new GladysIntegration();
 
@@ -68,17 +69,29 @@ gladys.onSetValue(async (device, feature, value) => {
 // and the deduplication would never resend them: forget what was published
 // for this device and refresh everything right away, so its features show
 // fresh values seconds after the add.
-gladys.onDeviceCreated(async (device) => {
-  logger.info(`onDeviceCreated <- ${device.external_id}`);
+/**
+ * A device created, or updated from the Discovery tab ("Update": the Gladys
+ * 5.3 music features of a player made before 1.3): the states published
+ * while its features did not exist were dropped by Gladys, so publish
+ * everything again (the SDK forgets its now-playing snapshot of it too).
+ * @param {string} event
+ */
+const republish = (event) => async (device) => {
+  logger.info(`${event} <- ${device.external_id}`);
   if (!monitor) {
     return;
   }
   monitor.resetPublicationCache(device.external_id);
   monitor.scheduleSessionRefresh();
   await monitor.refreshLibraries().catch((err) => {
-    logger.warn(`Library refresh after device creation failed: ${err.message}`);
+    logger.warn(`Library refresh after ${event} failed: ${err.message}`);
   });
-});
+};
+gladys.onDeviceCreated(republish('onDeviceCreated'));
+gladys.onDeviceUpdated(republish('onDeviceUpdated'));
+
+// Gladys 5.3 music panel (manifest `music`).
+registerMusicHandlers(gladys, () => monitor);
 
 // --- Polling ------------------------------------------------------------------
 // No device declares should_poll / poll_frequency: every value comes from the
@@ -208,6 +221,7 @@ async function initialize() {
     await monitor.refreshLibraries().catch((err) => {
       logger.warn(`Initial library refresh failed: ${err.message}`);
     });
+    await monitor.publishAbsentPlayersIdle();
     if (isStale()) {
       return;
     }

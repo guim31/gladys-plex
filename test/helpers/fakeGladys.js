@@ -8,9 +8,16 @@
 //   - publishSceneEvent              -> record calls so tests can assert them
 //   - requestWidgetRefresh           -> record calls so tests can assert them
 //   - setConnectionStatus            -> record calls so tests can assert them
+//   - publishNowPlaying              -> recorded in `nowPlaying`, and each
+//     value expanded into `published` / `textStates` under its feature id
+//     (no diff: the SDK's own diff is tested with its fake, test/music.test.js)
 // This lets us test the wiring logic (discovery payloads, dispatch, state
 // publication) without a running Gladys server or a real WebSocket.
 // -----------------------------------------------------------------------------
+
+import { artworkKey } from '@gladysassistant/integration-sdk';
+
+const TEXT_TYPES = new Set(['title', 'artist', 'album', 'artwork']);
 
 export function createFakeGladys() {
   const published = [];
@@ -19,6 +26,7 @@ export function createFakeGladys() {
   const connectionStatuses = [];
   const sceneEvents = [];
   const widgetRefreshes = [];
+  const nowPlaying = [];
 
   return {
     published,
@@ -27,6 +35,7 @@ export function createFakeGladys() {
     connectionStatuses,
     sceneEvents,
     widgetRefreshes,
+    nowPlaying,
 
     externalIds(type, platformId) {
       const device = `ext:plex:${type}:${platformId}`;
@@ -60,6 +69,20 @@ export function createFakeGladys() {
 
     async publishSceneEvent(key, data) {
       sceneEvents.push({ key, data });
+    },
+
+    async publishNowPlaying(device, snapshot, options = {}) {
+      nowPlaying.push({ device, snapshot: { ...snapshot }, options });
+      for (const [key, value] of Object.entries(snapshot)) {
+        const type = key === 'artwork_url' ? 'artwork' : key;
+        const featureExternalId = options.featureExternalIds?.[type] ?? `${device}:${type}`;
+        if (TEXT_TYPES.has(type)) {
+          const text = type === 'artwork' ? (value ? artworkKey(value) : '') : value;
+          textStates.push({ featureExternalId, text });
+        } else {
+          published.push({ featureExternalId, state: value });
+        }
+      }
     },
 
     async requestWidgetRefresh(key) {
